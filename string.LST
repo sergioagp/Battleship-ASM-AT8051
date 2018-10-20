@@ -1,0 +1,430 @@
+A51 MACRO ASSEMBLER  STRING                                                               02/16/2015 00:42:37 PAGE     1
+
+
+MACRO ASSEMBLER A51 V8.02b
+OBJECT MODULE PLACED IN string.OBJ
+ASSEMBLER INVOKED BY: C:\Keil_v5\C51\BIN\A51.EXE string.A51 NOMOD51 SET(SMALL) DEBUG EP
+
+LOC  OBJ            LINE     SOURCE
+
+                       1     ;#include <89c51rx2.inc>
+                +1     2  +1 $save     
+                +1   191  +1 $restore 
+                     192     
+                     193     ;#include "battleship.inc"
+                +1   194  +1 $save     
+                +1   230  +1 $restore 
+                     231     
+                     232     
+                     233     NAME STRING
+                     234     
+                     235     EXTRN CODE (SEND_RS232)
+                     236     EXTRN CODE (RECEIVE_COORD)
+                     237     EXTRN CODE (RECEIVE_DIR)
+                     238     
+                     239     PUBLIC SENDSTRMODE
+                     240     PUBLIC SENDMODEINSRT
+                     241     PUBLIC SENDSTRREADY
+                     242     PUBLIC SEND_PRESENTPLYR 
+                     243     PUBLIC SEND_STRGAMEOVER
+                     244     PUBLIC WAITING_DIR
+                     245     PUBLIC WAITING_COORD
+                     246     PUBLIC SEND_STRSHIPNR
+                     247     PUBLIC SEND_PB2START
+                     248     
+                     249     
+                     250     
+                     251     STRINGCODE SEGMENT CODE
+----                 252     RSEG STRINGCODE
+                     253     
+0000                 254     SEND_PB2START:
+0000 900000   F      255     MOV DPTR,#STRPRESS
+0003                 256     SEND_STR:
+0003 E4              257          CLR A
+0004 93              258          MOVC A,@A+DPTR
+0005 6006            259          JZ ENDSTR
+0007 120000   F      260          LCALL SEND_RS232
+000A A3              261          INC DPTR
+000B 80F6            262          JMP SEND_STR
+000D                 263         ENDSTR:
+000D 22              264             RET
+                     265     
+000E                 266     SENDSTRREADY:
+000E 1100     F      267         ACALL SEND_PRESENTPLYR
+0010 900000   F      268             MOV DPTR,#STRREADY
+0013 1100     F      269             ACALL SEND_STR
+0015 740A            270             MOV A,#10
+0017 120000   F      271             LCALL SEND_RS232
+001A 22              272             RET
+                     273                     
+001B                 274     SENDSTRMODE:
+001B 900000   F      275             MOV DPTR,#STRGAMEMODE
+001E 1100     F      276             ACALL SEND_STR
+0020 740A            277             MOV A,#10
+0022 120000   F      278             LCALL SEND_RS232
+0025 22              279             RET
+                     280             
+0026                 281     SENDMODEINSRT:
+A51 MACRO ASSEMBLER  STRING                                                               02/16/2015 00:42:37 PAGE     2
+
+0026 900000   F      282             MOV DPTR,#STRAUTOINSRT
+0029 1100     F      283             ACALL SEND_STR
+002B 740A            284             MOV A,#10
+002D 120000   F      285             LCALL SEND_RS232
+0030 22              286             RET     
+                     287     
+0031                 288     SEND_PRESENTPLYR:
+0031 900000   F      289         MOV DPTR,#STRPLYR
+0034 1100     F      290         ACALL SEND_STR
+0036 B98007          291         CJNE R1,#BOARD_1HIT,SENDPLAYER2
+0039 7431            292         MOV A,#'1'
+003B 120000   F      293         LCALL SEND_RS232
+003E 8005            294         JMP RET_SENDPLYR
+0040                 295         SENDPLAYER2:
+0040 7432            296             MOV A,#'2'
+0042 120000   F      297             LCALL SEND_RS232
+0045                 298         RET_SENDPLYR:
+0045 22              299         RET
+                     300     
+0046                 301     WAITING_COORD:
+0046 C083            302         PUSH DPH
+0048 C082            303         PUSH DPL
+004A 900000   F      304         MOV DPTR,#STRCOORD
+004D 1100     F      305         ACALL SEND_STR
+004F 120000   F      306         LCALL RECEIVE_COORD                    ;espera para receção de coordenada valida    
+0052 740A            307         MOV A,#10                   ;NL = New Line
+0054 120000   F      308         LCALL SEND_RS232
+0057 D082            309         POP DPL
+0059 D083            310         POP DPH
+005B 22              311         RET
+                     312     
+005C                 313     WAITING_DIR:
+005C C083            314         PUSH DPH
+005E C082            315         PUSH DPL
+0060 900000   F      316         MOV DPTR,#STRDIR
+0063 1100     F      317         ACALL SEND_STR
+0065 120000   F      318             LCALL RECEIVE_DIR
+0068 740A            319         MOV A,#10                   ;NL = New Line
+006A 120000   F      320         LCALL SEND_RS232
+006D D082            321         POP DPL
+006F D083            322         POP DPH
+0071 22              323         RET
+                     324     
+0072                 325     SEND_STRSHIPNR:
+0072 C083            326         PUSH DPH
+0074 C082            327         PUSH DPL
+0076 900000   F      328         MOV DPTR,#STRSHIP
+0079 1100     F      329         ACALL SEND_STR
+007B E538            330         MOV A,SHIP_NUMBER
+007D 120000   F      331             LCALL SEND_RS232
+0080 740A            332         MOV A,#10                   ;NL = New Line
+0082 120000   F      333         LCALL SEND_RS232
+0085 D082            334         POP DPL
+0087 D083            335         POP DPH
+0089 22              336         RET
+                     337     
+008A                 338     SEND_STRGAMEOVER:
+008A 900000   F      339         MOV DPTR,#STRGAMEOVER
+008D 120000   F      340         LCALL SEND_STR 
+0090 120000   F      341         LCALL SEND_PRESENTPLYR
+0093 740A            342         MOV A,#10
+0095 120000   F      343         LCALL SEND_RS232
+0098 E53C            344         MOV A,MINUTO
+009A 75F00A          345         MOV B,#10
+009D 84              346         DIV AB
+009E 2430            347         ADD A,#'0'
+A51 MACRO ASSEMBLER  STRING                                                               02/16/2015 00:42:37 PAGE     3
+
+00A0 120000   F      348         LCALL SEND_RS232
+00A3 E5F0            349         MOV A,B
+00A5 2430            350         ADD A,#'0'
+00A7 120000   F      351         LCALL SEND_RS232
+00AA 743A            352         MOV A,#':'
+00AC 120000   F      353         LCALL SEND_RS232
+00AF E53B            354         MOV A,SEGUNDO
+00B1 75F00A          355         MOV B,#10
+00B4 84              356         DIV AB
+00B5 2430            357         ADD A,#'0'
+00B7 120000   F      358         LCALL SEND_RS232
+00BA E5F0            359         MOV A,B
+00BC 2430            360         ADD A,#'0'
+00BE 120000   F      361         LCALL SEND_RS232
+00C1 740A            362         MOV A,#10
+00C3 120000   F      363         LCALL SEND_RS232
+00C6 22              364         RET
+                     365     
+00C7                 366     STRGAMEMODE:
+00C7 4D4F444F        367             DB 'MODO DE JOGO:',10,'1- HUMANO VS HUMANO',10,'2- HUMANO VS 8051',0
+00CB 20444520                
+00CF 4A4F474F                
+00D3 3A0A312D                
+00D7 2048554D                
+00DB 414E4F20                
+00DF 56532048                
+00E3 554D414E                
+00E7 4F0A322D                
+00EB 2048554D                
+00EF 414E4F20                
+00F3 56532038                
+00F7 30353100                
+00FB                 368     STRAUTOINSRT:
+00FB 0A494E53        369     DB 10,'INSERIR AUTO.?(Y ou N)',0
+00FF 45524952                
+0103 20415554                
+0107 4F2E3F28                
+010B 59206F75                
+010F 204E2900                
+0113                 370     STRSHIP:
+0113 494E5345        371         DB 'INSERT SHIP N.: ',0
+0117 52542053                
+011B 48495020                
+011F 4E2E3A20                
+0123 00                      
+0124                 372     STRDIR:
+0124 44495228        373             DB 'DIR(V OU H): ',0
+0128 56204F55                
+012C 2048293A                
+0130 2000                    
+0132                 374     STRCOORD:
+0132 434F4F52        375         DB 'COORD(LETRANUM): ',0
+0136 44284C45                
+013A 5452414E                
+013E 554D293A                
+0142 2000                    
+0144                 376     STRGAMEOVER:
+0144 20202020        377         DB '     **GAMEOVER**',10,'        WINNER',10,0
+0148 202A2A47                
+014C 414D454F                
+0150 5645522A                
+0154 2A0A2020                
+0158 20202020                
+015C 20205749                
+0160 4E4E4552                
+0164 0A00                    
+A51 MACRO ASSEMBLER  STRING                                                               02/16/2015 00:42:37 PAGE     4
+
+0166                 378     STRPLYR:
+0166 20202020        379         DB '       PLAYER ',0
+016A 20202050                
+016E 4C415945                
+0172 522000                  
+0175                 380     STRPRESS:
+0175 2A505245        381         DB '*PRESS BUTTON 2 (P3.5) TO START*',10,0
+0179 53532042                
+017D 5554544F                
+0181 4E203220                
+0185 2850332E                
+0189 35292054                
+018D 4F205354                
+0191 4152542A                
+0195 0A00                    
+0197                 382     STRREADY:
+0197 0A524541        383         DB 10,'READY?',10,'(PRESS PB2)',10,0
+019B 44593F0A                
+019F 28505245                
+01A3 53532050                
+01A7 4232290A                
+01AB 00                      
+                     384     
+                     385     END
+A51 MACRO ASSEMBLER  STRING                                                               02/16/2015 00:42:37 PAGE     5
+
+SYMBOL TABLE LISTING
+------ ----- -------
+
+
+N A M E             T Y P E  V A L U E   ATTRIBUTES
+
+AC . . . . . . . .  B ADDR   00D0H.6 A   
+ACC. . . . . . . .  D ADDR   00E0H   A   
+ALRCOORD . . . . .  B ADDR   0020H.2 A   
+AUTOGAME . . . . .  B ADDR   0020H.6 A   
+AUTOINSRT. . . . .  B ADDR   0020H.7 A   
+AUTOREG. . . . . .  D ADDR   003AH   A   
+AUXR . . . . . . .  D ADDR   008EH   A   
+AUXR1. . . . . . .  D ADDR   00A2H   A   
+B. . . . . . . . .  D ADDR   00F0H   A   
+BDRCON . . . . . .  D ADDR   009BH   A   
+BOARDS . . . . . .  N NUMB   0080H   A   
+BOARD_1DEF . . . .  I ADDR   0098H   A   
+BOARD_1HIT . . . .  I ADDR   0080H   A   
+BOARD_2DEF . . . .  I ADDR   0090H   A   
+BOARD_2HIT . . . .  I ADDR   0088H   A   
+BRL. . . . . . . .  D ADDR   009AH   A   
+BSHIPREG . . . . .  D ADDR   0020H   A   
+CCAP0H . . . . . .  D ADDR   00FAH   A   
+CCAP0L . . . . . .  D ADDR   00EAH   A   
+CCAP1H . . . . . .  D ADDR   00FBH   A   
+CCAP1L . . . . . .  D ADDR   00EBH   A   
+CCAP2H . . . . . .  D ADDR   00FCH   A   
+CCAP2L . . . . . .  D ADDR   00ECH   A   
+CCAP3H . . . . . .  D ADDR   00FDH   A   
+CCAP3L . . . . . .  D ADDR   00EDH   A   
+CCAP4H . . . . . .  D ADDR   00FEH   A   
+CCAP4L . . . . . .  D ADDR   00EEH   A   
+CCAPM0 . . . . . .  D ADDR   00DAH   A   
+CCAPM1 . . . . . .  D ADDR   00DBH   A   
+CCAPM2 . . . . . .  D ADDR   00DCH   A   
+CCAPM3 . . . . . .  D ADDR   00DDH   A   
+CCAPM4 . . . . . .  D ADDR   00DEH   A   
+CCF0 . . . . . . .  D ADDR   00D8H   A   
+CCF1 . . . . . . .  D ADDR   00D9H   A   
+CCF2 . . . . . . .  D ADDR   00DAH   A   
+CCF3 . . . . . . .  D ADDR   00DBH   A   
+CCF4 . . . . . . .  D ADDR   00DCH   A   
+CCON . . . . . . .  D ADDR   00D8H   A   
+CF . . . . . . . .  D ADDR   00DFH   A   
+CH . . . . . . . .  D ADDR   00F9H   A   
+CKCON0 . . . . . .  D ADDR   008FH   A   
+CKCON1 . . . . . .  D ADDR   00AFH   A   
+CKRL . . . . . . .  D ADDR   0096H   A   
+CL . . . . . . . .  D ADDR   00E9H   A   
+CMOD . . . . . . .  D ADDR   00D9H   A   
+COD_ASCII. . . . .  D ADDR   0031H   A   
+CP_RL2 . . . . . .  B ADDR   00C8H.0 A   
+CR . . . . . . . .  D ADDR   00DEH   A   
+CY . . . . . . . .  B ADDR   00D0H.7 A   
+C_T2 . . . . . . .  B ADDR   00C8H.1 A   
+DPH. . . . . . . .  D ADDR   0083H   A   
+DPL. . . . . . . .  D ADDR   0082H   A   
+EA . . . . . . . .  B ADDR   00A8H.7 A   
+EC . . . . . . . .  B ADDR   00A8H.6 A   
+ENDSTR . . . . . .  C ADDR   000DH   R   SEG=STRINGCODE
+ES . . . . . . . .  B ADDR   00A8H.4 A   
+ET0. . . . . . . .  B ADDR   00A8H.1 A   
+ET1. . . . . . . .  B ADDR   00A8H.3 A   
+ET2. . . . . . . .  B ADDR   00A8H.5 A   
+EX0. . . . . . . .  B ADDR   00A8H.0 A   
+A51 MACRO ASSEMBLER  STRING                                                               02/16/2015 00:42:37 PAGE     6
+
+EX1. . . . . . . .  B ADDR   00A8H.2 A   
+EXEN2. . . . . . .  B ADDR   00C8H.3 A   
+EXF2 . . . . . . .  B ADDR   00C8H.6 A   
+F0 . . . . . . . .  B ADDR   00D0H.5 A   
+FCON . . . . . . .  D ADDR   00D1H   A   
+FHIT . . . . . . .  B ADDR   0020H.1 A   
+IE0. . . . . . . .  B ADDR   0088H.1 A   
+IE1. . . . . . . .  B ADDR   0088H.3 A   
+IEN0 . . . . . . .  D ADDR   00A8H   A   
+IEN1 . . . . . . .  D ADDR   00B1H   A   
+INT0 . . . . . . .  B ADDR   00B0H.2 A   
+INT1 . . . . . . .  B ADDR   00B0H.3 A   
+IPH0 . . . . . . .  D ADDR   00B7H   A   
+IPH1 . . . . . . .  D ADDR   00B3H   A   
+IPL0 . . . . . . .  D ADDR   00B8H   A   
+IPL1 . . . . . . .  D ADDR   00B2H   A   
+IPOSX. . . . . . .  D ADDR   0037H   A   
+IPOSY. . . . . . .  D ADDR   0036H   A   
+IT0. . . . . . . .  B ADDR   0088H.0 A   
+IT1. . . . . . . .  B ADDR   0088H.2 A   
+KBE. . . . . . . .  D ADDR   009DH   A   
+KBF. . . . . . . .  D ADDR   009EH   A   
+KBLS . . . . . . .  D ADDR   009CH   A   
+LOOPS1SEC. . . . .  D ADDR   003DH   A   
+LPOSX. . . . . . .  D ADDR   0035H   A   
+LPOSY. . . . . . .  D ADDR   0034H   A   
+MINUTO . . . . . .  D ADDR   003CH   A   
+OV . . . . . . . .  B ADDR   00D0H.2 A   
+P. . . . . . . . .  B ADDR   00D0H.0 A   
+P0 . . . . . . . .  D ADDR   0080H   A   
+P1 . . . . . . . .  D ADDR   0090H   A   
+P2 . . . . . . . .  D ADDR   00A0H   A   
+P3 . . . . . . . .  D ADDR   00B0H   A   
+PCON . . . . . . .  D ADDR   0087H   A   
+POSX . . . . . . .  D ADDR   0033H   A   
+POSY . . . . . . .  D ADDR   0032H   A   
+PPCL . . . . . . .  B ADDR   00B8H.6 A   
+PSL. . . . . . . .  B ADDR   00B8H.4 A   
+PSW. . . . . . . .  D ADDR   00D0H   A   
+PT0L . . . . . . .  B ADDR   00B8H.1 A   
+PT1L . . . . . . .  B ADDR   00B8H.3 A   
+PT2L . . . . . . .  B ADDR   00B8H.5 A   
+PX0L . . . . . . .  B ADDR   00B8H.0 A   
+PX1L . . . . . . .  B ADDR   00B8H.2 A   
+RAND8REG . . . . .  D ADDR   0039H   A   
+RB8. . . . . . . .  B ADDR   0098H.2 A   
+RCAP2H . . . . . .  D ADDR   00CBH   A   
+RCAP2L . . . . . .  D ADDR   00CAH   A   
+RCLK . . . . . . .  B ADDR   00C8H.5 A   
+RD . . . . . . . .  B ADDR   00B0H.7 A   
+RECEIVE_COORD. . .  C ADDR   -----       EXT
+RECEIVE_DIR. . . .  C ADDR   -----       EXT
+REN. . . . . . . .  B ADDR   0098H.4 A   
+RET_SENDPLYR . . .  C ADDR   0045H   R   SEG=STRINGCODE
+RI . . . . . . . .  B ADDR   0098H.0 A   
+RS0. . . . . . . .  B ADDR   00D0H.3 A   
+RS1. . . . . . . .  B ADDR   00D0H.4 A   
+RXD. . . . . . . .  B ADDR   00B0H.0 A   
+SADDR. . . . . . .  D ADDR   00A9H   A   
+SADEN. . . . . . .  D ADDR   00B9H   A   
+SBUF . . . . . . .  D ADDR   0099H   A   
+SCON . . . . . . .  D ADDR   0098H   A   
+SEGUNDO. . . . . .  D ADDR   003BH   A   
+SENDMODEINSRT. . .  C ADDR   0026H   R   SEG=STRINGCODE
+SENDPLAYER2. . . .  C ADDR   0040H   R   SEG=STRINGCODE
+SENDSTRMODE. . . .  C ADDR   001BH   R   SEG=STRINGCODE
+A51 MACRO ASSEMBLER  STRING                                                               02/16/2015 00:42:37 PAGE     7
+
+SENDSTRREADY . . .  C ADDR   000EH   R   SEG=STRINGCODE
+SEND_PB2START. . .  C ADDR   0000H   R   SEG=STRINGCODE
+SEND_PRESENTPLYR .  C ADDR   0031H   R   SEG=STRINGCODE
+SEND_RS232 . . . .  C ADDR   -----       EXT
+SEND_STR . . . . .  C ADDR   0003H   R   SEG=STRINGCODE
+SEND_STRGAMEOVER .  C ADDR   008AH   R   SEG=STRINGCODE
+SEND_STRSHIPNR . .  C ADDR   0072H   R   SEG=STRINGCODE
+SHIP_NUMBER. . . .  D ADDR   0038H   A   
+SHIP_ORI . . . . .  B ADDR   0020H.3 A   
+SM0. . . . . . . .  B ADDR   0098H.7 A   
+SM1. . . . . . . .  B ADDR   0098H.6 A   
+SM2. . . . . . . .  B ADDR   0098H.5 A   
+SP . . . . . . . .  D ADDR   0081H   A   
+SPCON. . . . . . .  D ADDR   00C3H   A   
+SPDAT. . . . . . .  D ADDR   00C5H   A   
+SPSTA. . . . . . .  D ADDR   00C4H   A   
+STRAUTOINSRT . . .  C ADDR   00FBH   R   SEG=STRINGCODE
+STRCOORD . . . . .  C ADDR   0132H   R   SEG=STRINGCODE
+STRDIR . . . . . .  C ADDR   0124H   R   SEG=STRINGCODE
+STRGAMEMODE. . . .  C ADDR   00C7H   R   SEG=STRINGCODE
+STRGAMEOVER. . . .  C ADDR   0144H   R   SEG=STRINGCODE
+STRING . . . . . .  N NUMB   -----       
+STRINGCODE . . . .  C SEG    01ACH       REL=UNIT
+STRPLYR. . . . . .  C ADDR   0166H   R   SEG=STRINGCODE
+STRPRESS . . . . .  C ADDR   0175H   R   SEG=STRINGCODE
+STRREADY . . . . .  C ADDR   0197H   R   SEG=STRINGCODE
+STRSHIP. . . . . .  C ADDR   0113H   R   SEG=STRINGCODE
+T0 . . . . . . . .  B ADDR   00B0H.4 A   
+T1 . . . . . . . .  B ADDR   00B0H.5 A   
+T2CON. . . . . . .  D ADDR   00C8H   A   
+T2MOD. . . . . . .  D ADDR   00C9H   A   
+TB8. . . . . . . .  B ADDR   0098H.3 A   
+TCLK . . . . . . .  B ADDR   00C8H.4 A   
+TCON . . . . . . .  D ADDR   0088H   A   
+TF0. . . . . . . .  B ADDR   0088H.5 A   
+TF1. . . . . . . .  B ADDR   0088H.7 A   
+TF2. . . . . . . .  B ADDR   00C8H.7 A   
+TH0. . . . . . . .  D ADDR   008CH   A   
+TH1. . . . . . . .  D ADDR   008DH   A   
+TH2. . . . . . . .  D ADDR   00CDH   A   
+TI . . . . . . . .  B ADDR   0098H.1 A   
+TL0. . . . . . . .  D ADDR   008AH   A   
+TL1. . . . . . . .  D ADDR   008BH   A   
+TL2. . . . . . . .  D ADDR   00CCH   A   
+TMOD . . . . . . .  D ADDR   0089H   A   
+TR0. . . . . . . .  B ADDR   0088H.4 A   
+TR1. . . . . . . .  B ADDR   0088H.6 A   
+TR2. . . . . . . .  B ADDR   00C8H.2 A   
+TXD. . . . . . . .  B ADDR   00B0H.1 A   
+VALID_COORD. . . .  B ADDR   0020H.0 A   
+VALID_SHIP . . . .  B ADDR   0020H.4 A   
+VLD_LMT. . . . . .  B ADDR   0020H.5 A   
+WAITING_COORD. . .  C ADDR   0046H   R   SEG=STRINGCODE
+WAITING_DIR. . . .  C ADDR   005CH   R   SEG=STRINGCODE
+WDTPRG . . . . . .  D ADDR   00A7H   A   
+WDTRST . . . . . .  D ADDR   00A6H   A   
+WR . . . . . . . .  B ADDR   00B0H.6 A   
+
+
+REGISTER BANK(S) USED: 0 
+
+
+ASSEMBLY COMPLETE.  0 WARNING(S), 0 ERROR(S)

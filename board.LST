@@ -1,0 +1,470 @@
+A51 MACRO ASSEMBLER  BOARD                                                                02/15/2015 22:57:58 PAGE     1
+
+
+MACRO ASSEMBLER A51 V8.02b
+OBJECT MODULE PLACED IN board.OBJ
+ASSEMBLER INVOKED BY: C:\Keil_v5\C51\BIN\A51.EXE board.a51 NOMOD51 SET(SMALL) DEBUG EP
+
+LOC  OBJ            LINE     SOURCE
+
+                       1     ;#include <89c51rx2.inc>
+                +1     2  +1 $save     
+                +1   191  +1 $restore 
+                     192     
+                     193     ;#include "battleship.inc"
+                +1   194  +1 $save     
+                +1   230  +1 $restore 
+                     231     
+                     232     
+                     233     NAME BOARD
+                     234             
+                     235     PUBLIC SEND_BOARD
+                     236     PUBLIC SEND_BOARDHIT
+                     237     PUBLIC RECEIVE_COORD
+                     238     PUBLIC CLEAR_BOARDS
+                     239     PUBLIC RECEIVE_DIR
+                     240     PUBLIC CHANGE_PLAYER
+                     241     PUBLIC CHECK_COORD
+                     242     
+                     243     EXTRN CODE (SEND_RS232)
+                     244     EXTRN CODE (RECEIVE_PS2)
+                     245     
+                     246     BOARD SEGMENT CODE
+----                 247     RSEG BOARD
+                     248     
+                     249     ;/**
+                     250     ; * FUNCTION_PURPOSE:CONDIÇÃO:verifica e converte (0-7) se a coordenada INPUT está dentro d
+                             os limites, intervalo dos limites 8
+                     251     ; * FUNCTION_INPUTS:ACC-parametro para verificar
+                     252     ; * FUNCTION_OUTPUTS:ACC-parametro convertido, VALID_COORD
+                     253     ; */            
+0000                 254     CHECK_COORD:
+0000 C3              255             CLR C
+0001 9531            256             SUBB A,COD_ASCII
+0003 4008            257             JC ERRO_COORD                   ;detetar limite inferior em numero e letra
+0005 B40800          258         CJNE A,#8,$+3
+0008 5003            259             JNC ERRO_COORD
+000A D200            260             SETB VALID_COORD
+000C 22              261             RET
+000D                 262     ERRO_COORD:
+000D C200            263             CLR VALID_COORD
+000F 22              264             RET
+                     265     
+0010                 266     SEND_BOARD:                                     ;ele primeiro vai ao LSBYTE e vai ao MSBIT 
+                             na posição A1
+0010 C001            267             PUSH AR1
+0012 740A            268         MOV A,#10;'\n'
+0014 120000   F      269             CALL SEND_RS232
+0017 120000   F      270         CALL WRITE_COORD
+001A 7D41            271             MOV R5,#'A'                     ;para escrever as coordenadas Y, começo em A
+001C 7F08            272             MOV R7,#8                               ;8loops para percorrer as 8 linhas da matri
+                             z
+001E 7E08            273             MOV R6,#8                               ;8loops para percorrer os 8 bits duma linha
+                              da matriz(que é um byte)
+0020                 274             OUTER_LOOP:
+0020 ED              275                     MOV A,R5
+0021 120000   F      276                     CALL SEND_RS232         ;escreve as coordenadas A-H 
+0024 7420            277                     MOV A,#' '
+A51 MACRO ASSEMBLER  BOARD                                                                02/15/2015 22:57:58 PAGE     2
+
+0026 120000   F      278                     CALL SEND_RS232
+0029 120000   F      279                     CALL SEND_RS232         ;dois espaços para melhorar interface
+002C E7              280                     MOV A,@R1                       ;acumulador fica com o valor de uma linha d
+                             a matriz
+002D                 281                     INNER_LOOP:
+002D 33              282                             RLC A                   ;passo para o carry o MSB
+002E C0E0            283                             PUSH ACC                ;guardo o valor do acumulador pois a seguir
+                              vou ter que limpar
+0030 E4              284                             CLR A                   ;limpo o acumulador 
+0031 3430            285                             ADDC A,#30H     ; Apos o CLR A, basicamente esta instrucao é A = 30
+                             H+0/1 (carry)
+0033 120000   F      286                             CALL SEND_RS232 ;envia 30H ou 31H dependendo do caso (0 ou 1)
+0036 7420            287                             MOV A,#' ' 
+0038 120000   F      288                             CALL SEND_RS232 ;para dar espaçamento entre os elementos da matriz
+003B D0E0            289                             POP ACC                 ;recuperar o valor do acumulador
+003D DEEE            290                             DJNZ R6,INNER_LOOP
+003F 740A            291                     MOV A,#10                       ;NL = New Line
+0041 120000   F      292                     CALL SEND_RS232
+0044 7E08            293                     MOV R6,#8                       ;reestabelece o numero de loops
+0046 09              294                     INC R1                          ;passa para o byte seguinte/passa para a li
+                             nha seguinte da matriz
+0047 0D              295                     INC R5                          ;incrementa as coordenadas Y
+0048 DFD6            296                     DJNZ R7,OUTER_LOOP
+004A 740A            297                     MOV A,#10                       ;NL = New Line
+004C 120000   F      298                     CALL SEND_RS232
+004F 120000   F      299                     CALL SEND_RS232
+0052 D001            300             POP AR1
+0054 22              301         RET
+                     302     
+                     303     ;/**
+                     304     ; * FUNCTION_PURPOSE: Transmitir por via porta série o tabuleiro
+                     305     ; * FUNCTION_INPUTS:R1(HIT),R0(DEFENSE)
+                     306     ; * FUNCTION_OUTPUTS:void
+                     307     ; */    
+0055                 308     SEND_BOARDHIT:                                  ;ele primeiro vai ao LSBYTE e vai ao MSBIT 
+                             na posição A1        
+0055 C001            309             PUSH AR1
+0057 740A            310         MOV A,#10;'\n'
+0059 120000   F      311             CALL SEND_RS232
+005C 120000   F      312         CALL WRITE_COORD
+005F 7D41            313             MOV R5,#'A'                     ;para escrever as coordenadas Y, começo em A
+0061 7F08            314             MOV R7,#8                               ;8loops para percorrer as 8 linhas da matri
+                             z
+0063 7E08            315             MOV R6,#8                               ;8loops para percorrer os 8 bits duma linha
+                              da matriz(que é um byte)
+0065 7C0E            316         MOV R4,#14               ;contador de barcos atingidos
+                     317     
+0067 E9              318         MOV A,R1
+0068 2410            319         ADD A,#10H
+006A F8              320         MOV R0,A
+006B                 321             HITOUTER_LOOP:
+006B ED              322                     MOV A,R5
+006C 120000   F      323                     CALL SEND_RS232         ;escreve as coordenadas A-H 
+006F 7420            324                     MOV A,#' '
+0071 120000   F      325                     CALL SEND_RS232
+0074 120000   F      326                     CALL SEND_RS232         ;dois espaços para melhorar interface
+                     327             
+0077 E7              328                     MOV A,@R1                       ;acumulador fica com o valor de uma linha d
+                             a matriz
+0078 7480            329                     MOV A,#80H
+007A                 330             HITINNER_LOOP:
+007A C0E0            331                 PUSH ACC
+007C 120000   F      332                 LCALL WRITE_PIECE
+007F 120000   F      333                             CALL SEND_RS232 
+0082 7420            334                             MOV A,#' ' 
+0084 120000   F      335                             CALL SEND_RS232 ;para dar espaçamento entre os elementos da matriz
+A51 MACRO ASSEMBLER  BOARD                                                                02/15/2015 22:57:58 PAGE     3
+
+0087 D0E0            336                             POP ACC                 ;recuperar o valor do acumulador
+0089 03              337                 RR A
+008A DEEE            338                             DJNZ R6,HITINNER_LOOP
+008C 740A            339                     MOV A,#10                       ;NL = New Line
+008E 120000   F      340                     CALL SEND_RS232
+0091 7E08            341                     MOV R6,#8                       ;reestabelece o numero de loops
+0093 09              342                     INC R1                          ;passa para o byte seguinte/passa para a li
+                             nha seguinte da matriz
+0094 08              343             INC R0
+0095 0D              344                     INC R5                          ;incrementa as coordenadas Y
+0096 DFD3            345                     DJNZ R7,HITOUTER_LOOP
+0098 740A            346                     MOV A,#10                       ;NL = New Line
+009A 120000   F      347                     CALL SEND_RS232
+009D 120000   F      348                     CALL SEND_RS232
+00A0 EC              349         MOV A,R4
+00A1 D001            350             POP AR1
+00A3 22              351         RET
+                     352     
+00A4                 353     WRITE_COORD:
+00A4 7420            354             MOV A,#' '
+00A6 120000   F      355             CALL SEND_RS232
+00A9 120000   F      356             CALL SEND_RS232
+00AC 120000   F      357             CALL SEND_RS232                 ; 3 espacos iniciais para ficar corretamente posici
+                             onado
+00AF 7431            358             MOV A,#'1'
+00B1                 359             LOOP_COORD:
+00B1 120000   F      360                     CALL SEND_RS232         ;imprime as coordenadas X
+00B4 C0E0            361                     PUSH ACC                        ;guardo na stack o valor atual de A pois pr
+                             eciso de enviar espaços para o terminal
+00B6 7420            362                     MOV A,#' ' 
+00B8 120000   F      363                     CALL SEND_RS232         ;envio um espaço para o terminal
+00BB D0E0            364                     POP ACC                         ;recupero o valor do acumulador
+00BD 04              365                     INC A                           ;passo para a coordenada X seguinte (se era
+                              1 passa agora para 2, etc)
+00BE B439F0          366                     CJNE A,#'9',LOOP_COORD ;quando atingir o numero 9 acaba o ciclo
+00C1 740A            367             MOV A,#10;'\n'
+00C3 120000   F      368             CALL SEND_RS232
+00C6 120000   F      369             CALL SEND_RS232                 ;2 enters para melhorar a percecao do posicionament
+                             o
+00C9 22              370             RET
+                     371     
+00CA                 372     WRITE_PIECE:
+00CA 57              373         ANL A,@R1               ;verifica que elemento está no tabuleiro de ataque
+00CB 6007            374         JZ EMPTY_PIECE          ;caso esteja a zero então envia '0'
+00CD 56              375         ANL A,@R0               ;caso esteja a 1 verificar com o tabuleiro de defesa do oponent
+                             e se este está também a q
+00CE 6007            376         JZ MISS_PIECE           ;caso não envia simplesmente 1
+00D0 7432            377         MOV A,#'2'              ;caso sim significa que foi HIT e envia '2'
+00D2 1C              378         DEC R4                  ;e sendo assim menos um barco para atingir
+00D3 22              379         RET
+00D4                 380     EMPTY_PIECE:
+00D4 7430            381         MOV A,#'0'
+00D6 22              382         RET
+00D7                 383     MISS_PIECE:
+00D7 7431            384         MOV A,#'1'
+00D9 22              385         RET
+                     386     
+                     387     
+                     388     ;/**
+                     389     ; * FUNCTION_PURPOSE: Zera os Boards (4*8bytes apartir)
+                     390     ; * FUNCTION_INPUTS:VOID
+                     391     ; * FUNCTION_OUTPUTS:R3,R7,BOARD
+                     392     ; */
+00DA                 393     CLEAR_BOARDS:
+00DA 7F20            394             MOV R7,#32              ;(8+8+8+8 2PLAYERS, 4 boards, 8 bytes each)
+00DC AB81            395             MOV R3,SP
+A51 MACRO ASSEMBLER  BOARD                                                                02/15/2015 22:57:58 PAGE     4
+
+00DE 75817F          396             MOV SP,#BOARDS-1
+00E1 E4              397             CLR A
+00E2                 398             CLR_LOOP:
+00E2 C0E0            399                     PUSH ACC
+00E4 DFFC            400                     DJNZ R7,CLR_LOOP
+00E6 8B81            401             MOV SP,R3
+00E8 22              402             RET
+                     403     
+                     404     
+00E9                 405     RECEIVE_COORD:
+00E9 120000   F      406         LCALL RECEIVE_PS2
+                     407             ;JB VALID_COORD,NUMBERCOORD                             ;verifica se já recebeu let
+                             ra valida
+00EC 753141          408             MOV COD_ASCII,#'A'                                              ;caso nao: prepara 
+                             valor de limite para letra
+                     409             
+00EF 120000   F      410             LCALL CHECK_COORD                       
+00F2 3000F4          411             JNB VALID_COORD,RECEIVE_COORD                   ;caso não: for valida coordenada sa
+                             lta para o inicio da rotina
+                     412             ;CLR VALID_COORD        
+00F5 F532            413         MOV POSY,A                                                          ;armazena
+00F7                 414     NUMBERCOORD:
+00F7 120000   F      415         LCALL RECEIVE_PS2
+00FA 753131          416             MOV COD_ASCII,#'1'                                              ;prepara valor de l
+                             imite para o numero                          
+00FD 120000   F      417             LCALL CHECK_COORD
+0100 3000F4          418             JNB VALID_COORD,NUMBERCOORD                             ;caso não: for valida coord
+                             enada salta para rotina de erro
+0103 F533            419             MOV POSX,A
+                     420         ;SETB FCOORD                                                                ;ativa FLAG
+                              de receção da coordenada
+0105 22              421             RET
+                     422     
+0106                 423     ERRCOORD:
+                     424             ;CLR FCOORD
+0106 22              425             RET
+                     426     
+0107                 427     RECEIVE_DIR:
+0107 120000   F      428             LCALL RECEIVE_PS2                       ;recebe tecla pressionar
+010A B45604          429             CJNE A,#'V',OTHER_DIR                      ;caso seja 'V' ou 'H' então significa qu
+                             e obteve direção valida
+010D D203            430             SETB SHIP_ORI           
+010F 8005            431             JMP DIR_END
+0111                 432             OTHER_DIR:
+0111 B448F3          433                     CJNE A,#'H',RECEIVE_DIR                 ;se não volta a pedir
+0114 C203            434                     CLR SHIP_ORI
+0116                 435             DIR_END:
+0116 22              436             RET
+                     437     
+                     438     ;/**
+                     439     ; * FUNCTION_PURPOSE: Muda de jogador e caso não exista, por definição coloca no jogador1
+                     440     ; * FUNCTION_INPUTS:R0,R1
+                     441     ; * FUNCTION_OUTPUTS:R0,R1
+                     442     ; */
+0117                 443     CHANGE_PLAYER:
+0117 B98003          444             CJNE R1,#BOARD_1HIT,CHANGE2P1
+                     445     ;CHANGE2P2:     
+011A 7988            446             MOV     R1,#BOARD_2HIT             ;e registará no seu tabuleiro de ataque 
+011C 22              447             RET
+011D                 448     CHANGE2P1:
+011D 7980            449             MOV R1,#BOARD_1HIT             ;e registará no seu tabuleiro de ataque 
+011F 22              450             RET
+                     451             
+                     452     END
+A51 MACRO ASSEMBLER  BOARD                                                                02/15/2015 22:57:58 PAGE     5
+
+SYMBOL TABLE LISTING
+------ ----- -------
+
+
+N A M E             T Y P E  V A L U E   ATTRIBUTES
+
+AC . . . . . . . .  B ADDR   00D0H.6 A   
+ACC. . . . . . . .  D ADDR   00E0H   A   
+ALRCOORD . . . . .  B ADDR   0020H.2 A   
+AR1. . . . . . . .  D ADDR   0001H   A   
+AUTOGAME . . . . .  B ADDR   0020H.6 A   
+AUTOINSRT. . . . .  B ADDR   0020H.7 A   
+AUTOREG. . . . . .  D ADDR   003AH   A   
+AUXR . . . . . . .  D ADDR   008EH   A   
+AUXR1. . . . . . .  D ADDR   00A2H   A   
+B. . . . . . . . .  D ADDR   00F0H   A   
+BDRCON . . . . . .  D ADDR   009BH   A   
+BOARD. . . . . . .  C SEG    0120H       REL=UNIT
+BOARDS . . . . . .  N NUMB   0080H   A   
+BOARD_1DEF . . . .  I ADDR   0098H   A   
+BOARD_1HIT . . . .  I ADDR   0080H   A   
+BOARD_2DEF . . . .  I ADDR   0090H   A   
+BOARD_2HIT . . . .  I ADDR   0088H   A   
+BRL. . . . . . . .  D ADDR   009AH   A   
+BSHIPREG . . . . .  D ADDR   0020H   A   
+CCAP0H . . . . . .  D ADDR   00FAH   A   
+CCAP0L . . . . . .  D ADDR   00EAH   A   
+CCAP1H . . . . . .  D ADDR   00FBH   A   
+CCAP1L . . . . . .  D ADDR   00EBH   A   
+CCAP2H . . . . . .  D ADDR   00FCH   A   
+CCAP2L . . . . . .  D ADDR   00ECH   A   
+CCAP3H . . . . . .  D ADDR   00FDH   A   
+CCAP3L . . . . . .  D ADDR   00EDH   A   
+CCAP4H . . . . . .  D ADDR   00FEH   A   
+CCAP4L . . . . . .  D ADDR   00EEH   A   
+CCAPM0 . . . . . .  D ADDR   00DAH   A   
+CCAPM1 . . . . . .  D ADDR   00DBH   A   
+CCAPM2 . . . . . .  D ADDR   00DCH   A   
+CCAPM3 . . . . . .  D ADDR   00DDH   A   
+CCAPM4 . . . . . .  D ADDR   00DEH   A   
+CCF0 . . . . . . .  D ADDR   00D8H   A   
+CCF1 . . . . . . .  D ADDR   00D9H   A   
+CCF2 . . . . . . .  D ADDR   00DAH   A   
+CCF3 . . . . . . .  D ADDR   00DBH   A   
+CCF4 . . . . . . .  D ADDR   00DCH   A   
+CCON . . . . . . .  D ADDR   00D8H   A   
+CF . . . . . . . .  D ADDR   00DFH   A   
+CH . . . . . . . .  D ADDR   00F9H   A   
+CHANGE2P1. . . . .  C ADDR   011DH   R   SEG=BOARD
+CHANGE_PLAYER. . .  C ADDR   0117H   R   SEG=BOARD
+CHECK_COORD. . . .  C ADDR   0000H   R   SEG=BOARD
+CKCON0 . . . . . .  D ADDR   008FH   A   
+CKCON1 . . . . . .  D ADDR   00AFH   A   
+CKRL . . . . . . .  D ADDR   0096H   A   
+CL . . . . . . . .  D ADDR   00E9H   A   
+CLEAR_BOARDS . . .  C ADDR   00DAH   R   SEG=BOARD
+CLR_LOOP . . . . .  C ADDR   00E2H   R   SEG=BOARD
+CMOD . . . . . . .  D ADDR   00D9H   A   
+COD_ASCII. . . . .  D ADDR   0031H   A   
+CP_RL2 . . . . . .  B ADDR   00C8H.0 A   
+CR . . . . . . . .  D ADDR   00DEH   A   
+CY . . . . . . . .  B ADDR   00D0H.7 A   
+C_T2 . . . . . . .  B ADDR   00C8H.1 A   
+DIR_END. . . . . .  C ADDR   0116H   R   SEG=BOARD
+DPH. . . . . . . .  D ADDR   0083H   A   
+DPL. . . . . . . .  D ADDR   0082H   A   
+A51 MACRO ASSEMBLER  BOARD                                                                02/15/2015 22:57:58 PAGE     6
+
+EA . . . . . . . .  B ADDR   00A8H.7 A   
+EC . . . . . . . .  B ADDR   00A8H.6 A   
+EMPTY_PIECE. . . .  C ADDR   00D4H   R   SEG=BOARD
+ERRCOORD . . . . .  C ADDR   0106H   R   SEG=BOARD
+ERRO_COORD . . . .  C ADDR   000DH   R   SEG=BOARD
+ES . . . . . . . .  B ADDR   00A8H.4 A   
+ET0. . . . . . . .  B ADDR   00A8H.1 A   
+ET1. . . . . . . .  B ADDR   00A8H.3 A   
+ET2. . . . . . . .  B ADDR   00A8H.5 A   
+EX0. . . . . . . .  B ADDR   00A8H.0 A   
+EX1. . . . . . . .  B ADDR   00A8H.2 A   
+EXEN2. . . . . . .  B ADDR   00C8H.3 A   
+EXF2 . . . . . . .  B ADDR   00C8H.6 A   
+F0 . . . . . . . .  B ADDR   00D0H.5 A   
+FCON . . . . . . .  D ADDR   00D1H   A   
+FHIT . . . . . . .  B ADDR   0020H.1 A   
+HITINNER_LOOP. . .  C ADDR   007AH   R   SEG=BOARD
+HITOUTER_LOOP. . .  C ADDR   006BH   R   SEG=BOARD
+IE0. . . . . . . .  B ADDR   0088H.1 A   
+IE1. . . . . . . .  B ADDR   0088H.3 A   
+IEN0 . . . . . . .  D ADDR   00A8H   A   
+IEN1 . . . . . . .  D ADDR   00B1H   A   
+INNER_LOOP . . . .  C ADDR   002DH   R   SEG=BOARD
+INT0 . . . . . . .  B ADDR   00B0H.2 A   
+INT1 . . . . . . .  B ADDR   00B0H.3 A   
+IPH0 . . . . . . .  D ADDR   00B7H   A   
+IPH1 . . . . . . .  D ADDR   00B3H   A   
+IPL0 . . . . . . .  D ADDR   00B8H   A   
+IPL1 . . . . . . .  D ADDR   00B2H   A   
+IPOSX. . . . . . .  D ADDR   0037H   A   
+IPOSY. . . . . . .  D ADDR   0036H   A   
+IT0. . . . . . . .  B ADDR   0088H.0 A   
+IT1. . . . . . . .  B ADDR   0088H.2 A   
+KBE. . . . . . . .  D ADDR   009DH   A   
+KBF. . . . . . . .  D ADDR   009EH   A   
+KBLS . . . . . . .  D ADDR   009CH   A   
+LOOPS1SEC. . . . .  D ADDR   003DH   A   
+LOOP_COORD . . . .  C ADDR   00B1H   R   SEG=BOARD
+LPOSX. . . . . . .  D ADDR   0035H   A   
+LPOSY. . . . . . .  D ADDR   0034H   A   
+MINUTO . . . . . .  D ADDR   003CH   A   
+MISS_PIECE . . . .  C ADDR   00D7H   R   SEG=BOARD
+NUMBERCOORD. . . .  C ADDR   00F7H   R   SEG=BOARD
+OTHER_DIR. . . . .  C ADDR   0111H   R   SEG=BOARD
+OUTER_LOOP . . . .  C ADDR   0020H   R   SEG=BOARD
+OV . . . . . . . .  B ADDR   00D0H.2 A   
+P. . . . . . . . .  B ADDR   00D0H.0 A   
+P0 . . . . . . . .  D ADDR   0080H   A   
+P1 . . . . . . . .  D ADDR   0090H   A   
+P2 . . . . . . . .  D ADDR   00A0H   A   
+P3 . . . . . . . .  D ADDR   00B0H   A   
+PCON . . . . . . .  D ADDR   0087H   A   
+POSX . . . . . . .  D ADDR   0033H   A   
+POSY . . . . . . .  D ADDR   0032H   A   
+PPCL . . . . . . .  B ADDR   00B8H.6 A   
+PSL. . . . . . . .  B ADDR   00B8H.4 A   
+PSW. . . . . . . .  D ADDR   00D0H   A   
+PT0L . . . . . . .  B ADDR   00B8H.1 A   
+PT1L . . . . . . .  B ADDR   00B8H.3 A   
+PT2L . . . . . . .  B ADDR   00B8H.5 A   
+PX0L . . . . . . .  B ADDR   00B8H.0 A   
+PX1L . . . . . . .  B ADDR   00B8H.2 A   
+RAND8REG . . . . .  D ADDR   0039H   A   
+RB8. . . . . . . .  B ADDR   0098H.2 A   
+RCAP2H . . . . . .  D ADDR   00CBH   A   
+RCAP2L . . . . . .  D ADDR   00CAH   A   
+A51 MACRO ASSEMBLER  BOARD                                                                02/15/2015 22:57:58 PAGE     7
+
+RCLK . . . . . . .  B ADDR   00C8H.5 A   
+RD . . . . . . . .  B ADDR   00B0H.7 A   
+RECEIVE_COORD. . .  C ADDR   00E9H   R   SEG=BOARD
+RECEIVE_DIR. . . .  C ADDR   0107H   R   SEG=BOARD
+RECEIVE_PS2. . . .  C ADDR   -----       EXT
+REN. . . . . . . .  B ADDR   0098H.4 A   
+RI . . . . . . . .  B ADDR   0098H.0 A   
+RS0. . . . . . . .  B ADDR   00D0H.3 A   
+RS1. . . . . . . .  B ADDR   00D0H.4 A   
+RXD. . . . . . . .  B ADDR   00B0H.0 A   
+SADDR. . . . . . .  D ADDR   00A9H   A   
+SADEN. . . . . . .  D ADDR   00B9H   A   
+SBUF . . . . . . .  D ADDR   0099H   A   
+SCON . . . . . . .  D ADDR   0098H   A   
+SEGUNDO. . . . . .  D ADDR   003BH   A   
+SEND_BOARD . . . .  C ADDR   0010H   R   SEG=BOARD
+SEND_BOARDHIT. . .  C ADDR   0055H   R   SEG=BOARD
+SEND_RS232 . . . .  C ADDR   -----       EXT
+SHIP_NUMBER. . . .  D ADDR   0038H   A   
+SHIP_ORI . . . . .  B ADDR   0020H.3 A   
+SM0. . . . . . . .  B ADDR   0098H.7 A   
+SM1. . . . . . . .  B ADDR   0098H.6 A   
+SM2. . . . . . . .  B ADDR   0098H.5 A   
+SP . . . . . . . .  D ADDR   0081H   A   
+SPCON. . . . . . .  D ADDR   00C3H   A   
+SPDAT. . . . . . .  D ADDR   00C5H   A   
+SPSTA. . . . . . .  D ADDR   00C4H   A   
+T0 . . . . . . . .  B ADDR   00B0H.4 A   
+T1 . . . . . . . .  B ADDR   00B0H.5 A   
+T2CON. . . . . . .  D ADDR   00C8H   A   
+T2MOD. . . . . . .  D ADDR   00C9H   A   
+TB8. . . . . . . .  B ADDR   0098H.3 A   
+TCLK . . . . . . .  B ADDR   00C8H.4 A   
+TCON . . . . . . .  D ADDR   0088H   A   
+TF0. . . . . . . .  B ADDR   0088H.5 A   
+TF1. . . . . . . .  B ADDR   0088H.7 A   
+TF2. . . . . . . .  B ADDR   00C8H.7 A   
+TH0. . . . . . . .  D ADDR   008CH   A   
+TH1. . . . . . . .  D ADDR   008DH   A   
+TH2. . . . . . . .  D ADDR   00CDH   A   
+TI . . . . . . . .  B ADDR   0098H.1 A   
+TL0. . . . . . . .  D ADDR   008AH   A   
+TL1. . . . . . . .  D ADDR   008BH   A   
+TL2. . . . . . . .  D ADDR   00CCH   A   
+TMOD . . . . . . .  D ADDR   0089H   A   
+TR0. . . . . . . .  B ADDR   0088H.4 A   
+TR1. . . . . . . .  B ADDR   0088H.6 A   
+TR2. . . . . . . .  B ADDR   00C8H.2 A   
+TXD. . . . . . . .  B ADDR   00B0H.1 A   
+VALID_COORD. . . .  B ADDR   0020H.0 A   
+VALID_SHIP . . . .  B ADDR   0020H.4 A   
+VLD_LMT. . . . . .  B ADDR   0020H.5 A   
+WDTPRG . . . . . .  D ADDR   00A7H   A   
+WDTRST . . . . . .  D ADDR   00A6H   A   
+WR . . . . . . . .  B ADDR   00B0H.6 A   
+WRITE_COORD. . . .  C ADDR   00A4H   R   SEG=BOARD
+WRITE_PIECE. . . .  C ADDR   00CAH   R   SEG=BOARD
+
+
+REGISTER BANK(S) USED: 0 
+
+
+ASSEMBLY COMPLETE.  0 WARNING(S), 0 ERROR(S)

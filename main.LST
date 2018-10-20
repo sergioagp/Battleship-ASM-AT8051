@@ -1,0 +1,441 @@
+A51 MACRO ASSEMBLER  MAIN                                                                 02/16/2015 00:42:36 PAGE     1
+
+
+MACRO ASSEMBLER A51 V8.02b
+OBJECT MODULE PLACED IN main.OBJ
+ASSEMBLER INVOKED BY: C:\Keil_v5\C51\BIN\A51.EXE main.a51 NOMOD51 SET(SMALL) DEBUG EP
+
+LOC  OBJ            LINE     SOURCE
+
+                       1     ;#include <89c51rx2.inc>
+                +1     2  +1 $save     
+                +1   191  +1 $restore 
+                     192     
+                     193     ;#include "battleship.inc"
+                +1   194  +1 $save     
+                +1   230  +1 $restore 
+                     231     
+                     232     
+                     233     EXTRN CODE (CONFIG_EX0_PS2)
+                     234     EXTRN CODE (CHECK_ESC)
+                     235     EXTRN CODE (CONFIG_TMR0)
+                     236     EXTRN CODE (CONFIG_TMR1)
+                     237     EXTRN CODE (ISRTMR1)
+                     238     EXTRN CODE (CONFIG_RS232)
+                     239     EXTRN CODE (SEND_RS232)
+                     240     
+                     241     EXTRN CODE (SEND_BOARD)
+                     242     EXTRN CODE (SEND_BOARDHIT)
+                     243     
+                     244     EXTRN CODE (SEND_PB2START)
+                     245     EXTRN CODE (SEND_PRESENTPLYR)   
+                     246     EXTRN CODE (SENDSTRREADY)
+                     247     EXTRN CODE (SEND_STRGAMEOVER)
+                     248     EXTRN CODE (WAITING_DIR)
+                     249     EXTRN CODE (WAITING_COORD)
+                     250     EXTRN CODE (SEND_STRSHIPNR)
+                     251     
+                     252     EXTRN CODE (WAITING_MODEINSRT)
+                     253     EXTRN CODE (WAITING_MODE)
+                     254     
+                     255     EXTRN CODE (CLEAR_BOARDS)
+                     256     EXTRN CODE (ALREADY_COORD)
+                     257     EXTRN CODE (HIT_MISS_COORD)
+                     258     
+                     259     EXTRN CODE (INSERT_SHIP)
+                     260     EXTRN CODE (CHECK_SHIP)
+                     261     
+                     262     EXTRN CODE (AUTO_MOVE)
+                     263     EXTRN CODE (RND_INSERT)
+                     264     
+                     265     EXTRN CODE (CHANGE_PLAYER)
+                     266     
+----                 267     CSEG AT 0
+0000 8035            268             SJMP MAIN
+----                 269     CSEG AT 03H
+0003 802E            270         JMP ISR_EX0
+----                 271     CSEG AT 1BH
+001B 020000   F      272             JMP ISRTMR1
+----                 273     CSEG AT 33H
+0033                 274         ISR_EX0:
+0033 120000   F      275             LCALL CHECK_ESC
+0036 32              276         RETI
+                     277     
+                     278     
+0037                 279             MAIN:
+0037 758107          280             MOV SP,#07           ;valor de reset 
+003A 120000   F      281                     LCALL CONFIG_RS232
+A51 MACRO ASSEMBLER  MAIN                                                                 02/16/2015 00:42:36 PAGE     2
+
+003D 120000   F      282             LCALL CONFIG_TMR0       ;configurar TMR0 (modo 3) para gerar numero aleatorio inici
+                             al
+0040 120000   F      283             LCALL CONFIG_EX0_PS2    ;configurar PS2 que está no Pino externo 0
+0043 120000   F      284             LCALL CONFIG_TMR1
+                     285     
+                     286      
+                     287             
+                     288            
+                     289     
+0046                 290             STARTUP_PLAYERS:
+                     291             
+0046 752000          292             MOV BshipREG,#0         ;limpar flags e variaveis de bit
+0049 753A00          293             MOV AUTOreg,#0          ;limpar registo de modo de jogada 8051
+004C 120000   F      294             LCALL CLEAR_BOARDS      ;limpar tabuleiros
+004F D2B5            295             SETB P3.5               ;selecionar como entrada
+0051 D2AF            296             SETB EA
+                     297             
+0053 120000   F      298             LCALL SEND_PB2START     ;INDICA AO utilizador que
+0056 20B5FD          299             JB P3.5,$                       ;espera pelo botão START seja ativado
+0059 858A39          300             MOV rand8reg,TL0    ;primeiro valor para o registo do aleatorio
+005C 120000   F      301             LCALL WAITING_MODE
+                     302             
+005F 7980            303             MOV R1,#BOARD_1HIT      
+0061 120000   F      304             LCALL SEND_PRESENTPLYR      ;enviar str do presente jogador (inidcado apartir do r1
+                             )
+0064 120000   F      305             LCALL WAITING_MODEINSRT     ;espera que o jogador escolha se quer inserir automatic
+                             amente ou não os barcos
+0067 7998            306                     MOV R1,#BOARD_1DEF        
+0069 120000   F      307             LCALL SEND_BOARD
+006C 11D1            308             ACALL STARTUP_PLAYER        ;inserir barcos do seu jogador
+006E 120000   F      309             LCALL SEND_BOARD
+                     310     
+                     311     
+0071 7988            312             MOV R1,#BOARD_2HIT
+0073 120000   F      313             LCALL SEND_PRESENTPLYR      ;     ;enviar str do presente jogador (inidcado apartir
+                              do r1)
+0076 300604          314             JNB AUTOGAME,INSERTBRD2     ;caso for selecionado modo humano 8051 selecionar playe
+                             r 2 como automatico
+0079 D207            315             SETB AUTOINSRT              
+007B 8003            316             JMP SKIP_WAITING_MINSRT
+007D                 317             INSERTBRD2:
+007D 120000   F      318             LCALL WAITING_MODEINSRT     
+0080                 319             SKIP_WAITING_MINSRT:
+0080 7990            320             MOV R1,#BOARD_2DEF
+0082 120000   F      321             LCALL SEND_BOARD            ;enviar tabuleiro de defesa
+0085 11D1            322             ACALL STARTUP_PLAYER
+0087 120000   F      323             LCALL SEND_BOARD
+                     324     
+008A C207            325             CLR AUTOINSRT
+008C D28E            326             SETB TR1
+008E                 327             GAMELOOP:
+008E 120000   F      328                             LCALL CHANGE_PLAYER         ;muda de jogador (presente em r1)
+0091 200609          329                 JB AUTOGAME,SKIP_READY      ;caso nao for contra 8051 não perguntar se o jogado
+                             r está pronto
+0094 200706          330                 JB AUTOINSRT,SKIP_READY     
+0097 120000   F      331                 LCALL SENDSTRREADY          
+009A 20B5FD          332                 JB P3.5,$                   ;espera pelo botão READY seja ativado
+009D                 333                 SKIP_READY:
+009D 120000   F      334                 LCALL SEND_PRESENTPLYR      ;ENVIAR JOGADOR A JOGAR
+00A0 740A            335                 MOV A,#10
+00A2 120000   F      336                 LCALL SEND_RS232
+                     337     
+00A5 300705          338                 JNB AUTOINSRT,MANUAL_PLAY
+00A8 120000   F      339                 LCALL AUTO_MOVE             ;CASO SEJA PARA JOGAR AUTOMATICAMENTE CHAMAR AUTO  
+                             JOGADA 8051
+00AB 8018            340                 JMP CONTINUE
+A51 MACRO ASSEMBLER  MAIN                                                                 02/16/2015 00:42:36 PAGE     3
+
+                     341     
+00AD                 342             MANUAL_PLAY:                    ;INSERIR MANUALMENTE COORDENADAS PARA ATACAR
+00AD 120000   F      343                 LCALL SEND_BOARDHIT
+00B0                 344                 RECEIVE:
+00B0 120000   F      345                     LCALL WAITING_COORD     
+00B3 120000   F      346                     LCALL ALREADY_COORD             ;verifica se já acertou nessa coordenada
+00B6 2002F7          347                     JB      ALRCOORD, RECEIVE       ;caso sim volta a esperar nova coordenada  
+                                  */      
+                     348                 ;EXECUTE_MOVE:
+00B9 120000   F      349                             LCALL HIT_MISS_COORD    ;preenche no tabuleiro de ataque  
+00BC 7590FF          350                 MOV P1,#0FFH
+00BF 300103          351                 JNB FHIT,CONTINUE
+00C2 759081          352                 MOV P1,#81H     ;CASO FOR FOGO 'H.' NO DISPLAY
+00C5                 353             CONTINUE:
+00C5 120000   F      354                             LCALL SEND_BOARDHIT         ;ENVIA NOVAMENTE TABULEIRO DE ATAQUE
+00C8 603C            355                 JZ  GAMEOVER                ;CASO NAO FALTE NENHUM BARCO PARA ATACAR SER GAMEOV
+                             ER
+00CA 3006C1          356                 JNB AUTOGAME,GAMELOOP
+00CD B207            357                 CPL AUTOINSRT               ;ALTERNAR JOGADA AUTOMATICA
+00CF 80BD            358                 JMP GAMELOOP
+                     359     
+00D1                 360     STARTUP_PLAYER:
+00D1 90010D          361             MOV DPTR,#TABLE_NSHIPS       
+00D4                 362         OUTER_LOOP_INSRT:
+00D4 E4              363             CLR A
+00D5 93              364             MOVC A,@A+DPTR
+00D6 602D            365             JZ RET_INSERTION                 ;SAIDA do loop, quando atingir o valor 0 (break ta
+                             ble)
+00D8 F538            366             MOV SHIP_NUMBER,A               ;inicializar o primeiro tipo de barco  
+00DA 200703          367             JB AUTOINSRT,INNER_LOOP_INSRT   ;CASO for para inserir automaticamente nem mostrar 
+                             que barco é para inserir
+00DD 120000   F      368                     LCALL SEND_STRSHIPNR
+00E0                 369         INNER_LOOP_INSRT:
+00E0 300705          370             JNB AUTOINSRT,MANUALINSERT      ;saltar caso seja para inserir manualmente
+                     371             ;AUTOINSERT:
+00E3 120000   F      372             LCALL   RND_INSERT              ;inserir o barco em modo random
+00E6 800B            373             JMP CHECK_VLDSHIP
+                     374     
+00E8                 375             MANUALINSERT:
+00E8 E538            376             MOV A,SHIP_NUMBER
+00EA 14              377             DEC A
+00EB 6003            378             JZ  SKIP_DIR
+00ED 120000   F      379             LCALL WAITING_DIR               ;pedir a direção (horizontal ou vertical) de inserç
+                             ao ao  utilizador 
+00F0                 380             SKIP_DIR:
+00F0 120000   F      381             LCALL WAITING_COORD             ;pedir coordenada
+                     382     
+00F3                 383         CHECK_VLDSHIP:                      ;verificar se pode colocar esse barco nessas direçõ
+                             es
+00F3 120000   F      384             LCALL CHECK_SHIP
+00F6 3004E7          385             JNB VALID_SHIP,INNER_LOOP_INSRT    ;caso a sua incerção não seja valida voltar a pe
+                             dir dir, e coord
+00F9 120000   F      386             LCALL INSERT_SHIP                   ;insere o barco tal como pediu
+00FC 200703          387             JB AUTOINSRT,SKIP_SEND              ;enviar tabuleiro caso tenha sido inserção manu
+                             al
+00FF 120000   F      388             LCALL SEND_BOARD
+0102                 389         SKIP_SEND:
+0102 A3              390             INC DPTR
+0103 80CF            391             JMP OUTER_LOOP_INSRT
+0105                 392          RET_INSERTION:  
+0105 22              393             RET
+                     394     
+0106                 395     GAMEOVER:
+0106 C28E            396         CLR TR1
+0108 120000   F      397         LCALL SEND_STRGAMEOVER                  ;ENVIAR A INDICAÇÃO DE QUEM GANHOU E VOLTAR AO 
+                             INICIO
+A51 MACRO ASSEMBLER  MAIN                                                                 02/16/2015 00:42:36 PAGE     4
+
+010B 0146            398         JMP STARTUP_PLAYERS
+                     399     
+                     400     
+010D                 401     TABLE_NSHIPS:
+010D 04              402         DB 4
+010E 03              403         DB 3
+010F 02              404         DB 2
+0110 02              405         DB 2
+0111 01              406         DB 1
+0112 01              407         DB 1
+0113 01              408         DB 1
+0114 00              409         DB 0        ;BREAK
+                     410     
+                     411     END
+A51 MACRO ASSEMBLER  MAIN                                                                 02/16/2015 00:42:36 PAGE     5
+
+SYMBOL TABLE LISTING
+------ ----- -------
+
+
+N A M E              T Y P E  V A L U E   ATTRIBUTES
+
+AC. . . . . . . . .  B ADDR   00D0H.6 A   
+ACC . . . . . . . .  D ADDR   00E0H   A   
+ALRCOORD. . . . . .  B ADDR   0020H.2 A   
+ALREADY_COORD . . .  C ADDR   -----       EXT
+AUTOGAME. . . . . .  B ADDR   0020H.6 A   
+AUTOINSRT . . . . .  B ADDR   0020H.7 A   
+AUTOREG . . . . . .  D ADDR   003AH   A   
+AUTO_MOVE . . . . .  C ADDR   -----       EXT
+AUXR. . . . . . . .  D ADDR   008EH   A   
+AUXR1 . . . . . . .  D ADDR   00A2H   A   
+B . . . . . . . . .  D ADDR   00F0H   A   
+BDRCON. . . . . . .  D ADDR   009BH   A   
+BOARDS. . . . . . .  N NUMB   0080H   A   
+BOARD_1DEF. . . . .  I ADDR   0098H   A   
+BOARD_1HIT. . . . .  I ADDR   0080H   A   
+BOARD_2DEF. . . . .  I ADDR   0090H   A   
+BOARD_2HIT. . . . .  I ADDR   0088H   A   
+BRL . . . . . . . .  D ADDR   009AH   A   
+BSHIPREG. . . . . .  D ADDR   0020H   A   
+CCAP0H. . . . . . .  D ADDR   00FAH   A   
+CCAP0L. . . . . . .  D ADDR   00EAH   A   
+CCAP1H. . . . . . .  D ADDR   00FBH   A   
+CCAP1L. . . . . . .  D ADDR   00EBH   A   
+CCAP2H. . . . . . .  D ADDR   00FCH   A   
+CCAP2L. . . . . . .  D ADDR   00ECH   A   
+CCAP3H. . . . . . .  D ADDR   00FDH   A   
+CCAP3L. . . . . . .  D ADDR   00EDH   A   
+CCAP4H. . . . . . .  D ADDR   00FEH   A   
+CCAP4L. . . . . . .  D ADDR   00EEH   A   
+CCAPM0. . . . . . .  D ADDR   00DAH   A   
+CCAPM1. . . . . . .  D ADDR   00DBH   A   
+CCAPM2. . . . . . .  D ADDR   00DCH   A   
+CCAPM3. . . . . . .  D ADDR   00DDH   A   
+CCAPM4. . . . . . .  D ADDR   00DEH   A   
+CCF0. . . . . . . .  D ADDR   00D8H   A   
+CCF1. . . . . . . .  D ADDR   00D9H   A   
+CCF2. . . . . . . .  D ADDR   00DAH   A   
+CCF3. . . . . . . .  D ADDR   00DBH   A   
+CCF4. . . . . . . .  D ADDR   00DCH   A   
+CCON. . . . . . . .  D ADDR   00D8H   A   
+CF. . . . . . . . .  D ADDR   00DFH   A   
+CH. . . . . . . . .  D ADDR   00F9H   A   
+CHANGE_PLAYER . . .  C ADDR   -----       EXT
+CHECK_ESC . . . . .  C ADDR   -----       EXT
+CHECK_SHIP. . . . .  C ADDR   -----       EXT
+CHECK_VLDSHIP . . .  C ADDR   00F3H   A   
+CKCON0. . . . . . .  D ADDR   008FH   A   
+CKCON1. . . . . . .  D ADDR   00AFH   A   
+CKRL. . . . . . . .  D ADDR   0096H   A   
+CL. . . . . . . . .  D ADDR   00E9H   A   
+CLEAR_BOARDS. . . .  C ADDR   -----       EXT
+CMOD. . . . . . . .  D ADDR   00D9H   A   
+COD_ASCII . . . . .  D ADDR   0031H   A   
+CONFIG_EX0_PS2. . .  C ADDR   -----       EXT
+CONFIG_RS232. . . .  C ADDR   -----       EXT
+CONFIG_TMR0 . . . .  C ADDR   -----       EXT
+CONFIG_TMR1 . . . .  C ADDR   -----       EXT
+CONTINUE. . . . . .  C ADDR   00C5H   A   
+CP_RL2. . . . . . .  B ADDR   00C8H.0 A   
+CR. . . . . . . . .  D ADDR   00DEH   A   
+A51 MACRO ASSEMBLER  MAIN                                                                 02/16/2015 00:42:36 PAGE     6
+
+CY. . . . . . . . .  B ADDR   00D0H.7 A   
+C_T2. . . . . . . .  B ADDR   00C8H.1 A   
+DPH . . . . . . . .  D ADDR   0083H   A   
+DPL . . . . . . . .  D ADDR   0082H   A   
+EA. . . . . . . . .  B ADDR   00A8H.7 A   
+EC. . . . . . . . .  B ADDR   00A8H.6 A   
+ES. . . . . . . . .  B ADDR   00A8H.4 A   
+ET0 . . . . . . . .  B ADDR   00A8H.1 A   
+ET1 . . . . . . . .  B ADDR   00A8H.3 A   
+ET2 . . . . . . . .  B ADDR   00A8H.5 A   
+EX0 . . . . . . . .  B ADDR   00A8H.0 A   
+EX1 . . . . . . . .  B ADDR   00A8H.2 A   
+EXEN2 . . . . . . .  B ADDR   00C8H.3 A   
+EXF2. . . . . . . .  B ADDR   00C8H.6 A   
+F0. . . . . . . . .  B ADDR   00D0H.5 A   
+FCON. . . . . . . .  D ADDR   00D1H   A   
+FHIT. . . . . . . .  B ADDR   0020H.1 A   
+GAMELOOP. . . . . .  C ADDR   008EH   A   
+GAMEOVER. . . . . .  C ADDR   0106H   A   
+HIT_MISS_COORD. . .  C ADDR   -----       EXT
+IE0 . . . . . . . .  B ADDR   0088H.1 A   
+IE1 . . . . . . . .  B ADDR   0088H.3 A   
+IEN0. . . . . . . .  D ADDR   00A8H   A   
+IEN1. . . . . . . .  D ADDR   00B1H   A   
+INNER_LOOP_INSRT. .  C ADDR   00E0H   A   
+INSERTBRD2. . . . .  C ADDR   007DH   A   
+INSERT_SHIP . . . .  C ADDR   -----       EXT
+INT0. . . . . . . .  B ADDR   00B0H.2 A   
+INT1. . . . . . . .  B ADDR   00B0H.3 A   
+IPH0. . . . . . . .  D ADDR   00B7H   A   
+IPH1. . . . . . . .  D ADDR   00B3H   A   
+IPL0. . . . . . . .  D ADDR   00B8H   A   
+IPL1. . . . . . . .  D ADDR   00B2H   A   
+IPOSX . . . . . . .  D ADDR   0037H   A   
+IPOSY . . . . . . .  D ADDR   0036H   A   
+ISRTMR1 . . . . . .  C ADDR   -----       EXT
+ISR_EX0 . . . . . .  C ADDR   0033H   A   
+IT0 . . . . . . . .  B ADDR   0088H.0 A   
+IT1 . . . . . . . .  B ADDR   0088H.2 A   
+KBE . . . . . . . .  D ADDR   009DH   A   
+KBF . . . . . . . .  D ADDR   009EH   A   
+KBLS. . . . . . . .  D ADDR   009CH   A   
+LOOPS1SEC . . . . .  D ADDR   003DH   A   
+LPOSX . . . . . . .  D ADDR   0035H   A   
+LPOSY . . . . . . .  D ADDR   0034H   A   
+MAIN. . . . . . . .  C ADDR   0037H   A   
+MANUALINSERT. . . .  C ADDR   00E8H   A   
+MANUAL_PLAY . . . .  C ADDR   00ADH   A   
+MINUTO. . . . . . .  D ADDR   003CH   A   
+OUTER_LOOP_INSRT. .  C ADDR   00D4H   A   
+OV. . . . . . . . .  B ADDR   00D0H.2 A   
+P . . . . . . . . .  B ADDR   00D0H.0 A   
+P0. . . . . . . . .  D ADDR   0080H   A   
+P1. . . . . . . . .  D ADDR   0090H   A   
+P2. . . . . . . . .  D ADDR   00A0H   A   
+P3. . . . . . . . .  D ADDR   00B0H   A   
+PCON. . . . . . . .  D ADDR   0087H   A   
+POSX. . . . . . . .  D ADDR   0033H   A   
+POSY. . . . . . . .  D ADDR   0032H   A   
+PPCL. . . . . . . .  B ADDR   00B8H.6 A   
+PSL . . . . . . . .  B ADDR   00B8H.4 A   
+PSW . . . . . . . .  D ADDR   00D0H   A   
+PT0L. . . . . . . .  B ADDR   00B8H.1 A   
+PT1L. . . . . . . .  B ADDR   00B8H.3 A   
+PT2L. . . . . . . .  B ADDR   00B8H.5 A   
+PX0L. . . . . . . .  B ADDR   00B8H.0 A   
+A51 MACRO ASSEMBLER  MAIN                                                                 02/16/2015 00:42:36 PAGE     7
+
+PX1L. . . . . . . .  B ADDR   00B8H.2 A   
+RAND8REG. . . . . .  D ADDR   0039H   A   
+RB8 . . . . . . . .  B ADDR   0098H.2 A   
+RCAP2H. . . . . . .  D ADDR   00CBH   A   
+RCAP2L. . . . . . .  D ADDR   00CAH   A   
+RCLK. . . . . . . .  B ADDR   00C8H.5 A   
+RD. . . . . . . . .  B ADDR   00B0H.7 A   
+RECEIVE . . . . . .  C ADDR   00B0H   A   
+REN . . . . . . . .  B ADDR   0098H.4 A   
+RET_INSERTION . . .  C ADDR   0105H   A   
+RI. . . . . . . . .  B ADDR   0098H.0 A   
+RND_INSERT. . . . .  C ADDR   -----       EXT
+RS0 . . . . . . . .  B ADDR   00D0H.3 A   
+RS1 . . . . . . . .  B ADDR   00D0H.4 A   
+RXD . . . . . . . .  B ADDR   00B0H.0 A   
+SADDR . . . . . . .  D ADDR   00A9H   A   
+SADEN . . . . . . .  D ADDR   00B9H   A   
+SBUF. . . . . . . .  D ADDR   0099H   A   
+SCON. . . . . . . .  D ADDR   0098H   A   
+SEGUNDO . . . . . .  D ADDR   003BH   A   
+SENDSTRREADY. . . .  C ADDR   -----       EXT
+SEND_BOARD. . . . .  C ADDR   -----       EXT
+SEND_BOARDHIT . . .  C ADDR   -----       EXT
+SEND_PB2START . . .  C ADDR   -----       EXT
+SEND_PRESENTPLYR. .  C ADDR   -----       EXT
+SEND_RS232. . . . .  C ADDR   -----       EXT
+SEND_STRGAMEOVER. .  C ADDR   -----       EXT
+SEND_STRSHIPNR. . .  C ADDR   -----       EXT
+SHIP_NUMBER . . . .  D ADDR   0038H   A   
+SHIP_ORI. . . . . .  B ADDR   0020H.3 A   
+SKIP_DIR. . . . . .  C ADDR   00F0H   A   
+SKIP_READY. . . . .  C ADDR   009DH   A   
+SKIP_SEND . . . . .  C ADDR   0102H   A   
+SKIP_WAITING_MINSRT  C ADDR   0080H   A   
+SM0 . . . . . . . .  B ADDR   0098H.7 A   
+SM1 . . . . . . . .  B ADDR   0098H.6 A   
+SM2 . . . . . . . .  B ADDR   0098H.5 A   
+SP. . . . . . . . .  D ADDR   0081H   A   
+SPCON . . . . . . .  D ADDR   00C3H   A   
+SPDAT . . . . . . .  D ADDR   00C5H   A   
+SPSTA . . . . . . .  D ADDR   00C4H   A   
+STARTUP_PLAYER. . .  C ADDR   00D1H   A   
+STARTUP_PLAYERS . .  C ADDR   0046H   A   
+T0. . . . . . . . .  B ADDR   00B0H.4 A   
+T1. . . . . . . . .  B ADDR   00B0H.5 A   
+T2CON . . . . . . .  D ADDR   00C8H   A   
+T2MOD . . . . . . .  D ADDR   00C9H   A   
+TABLE_NSHIPS. . . .  C ADDR   010DH   A   
+TB8 . . . . . . . .  B ADDR   0098H.3 A   
+TCLK. . . . . . . .  B ADDR   00C8H.4 A   
+TCON. . . . . . . .  D ADDR   0088H   A   
+TF0 . . . . . . . .  B ADDR   0088H.5 A   
+TF1 . . . . . . . .  B ADDR   0088H.7 A   
+TF2 . . . . . . . .  B ADDR   00C8H.7 A   
+TH0 . . . . . . . .  D ADDR   008CH   A   
+TH1 . . . . . . . .  D ADDR   008DH   A   
+TH2 . . . . . . . .  D ADDR   00CDH   A   
+TI. . . . . . . . .  B ADDR   0098H.1 A   
+TL0 . . . . . . . .  D ADDR   008AH   A   
+TL1 . . . . . . . .  D ADDR   008BH   A   
+TL2 . . . . . . . .  D ADDR   00CCH   A   
+TMOD. . . . . . . .  D ADDR   0089H   A   
+TR0 . . . . . . . .  B ADDR   0088H.4 A   
+TR1 . . . . . . . .  B ADDR   0088H.6 A   
+TR2 . . . . . . . .  B ADDR   00C8H.2 A   
+TXD . . . . . . . .  B ADDR   00B0H.1 A   
+A51 MACRO ASSEMBLER  MAIN                                                                 02/16/2015 00:42:36 PAGE     8
+
+VALID_COORD . . . .  B ADDR   0020H.0 A   
+VALID_SHIP. . . . .  B ADDR   0020H.4 A   
+VLD_LMT . . . . . .  B ADDR   0020H.5 A   
+WAITING_COORD . . .  C ADDR   -----       EXT
+WAITING_DIR . . . .  C ADDR   -----       EXT
+WAITING_MODE. . . .  C ADDR   -----       EXT
+WAITING_MODEINSRT .  C ADDR   -----       EXT
+WDTPRG. . . . . . .  D ADDR   00A7H   A   
+WDTRST. . . . . . .  D ADDR   00A6H   A   
+WR. . . . . . . . .  B ADDR   00B0H.6 A   
+
+
+REGISTER BANK(S) USED: 0 
+
+
+ASSEMBLY COMPLETE.  0 WARNING(S), 0 ERROR(S)

@@ -1,0 +1,505 @@
+A51 MACRO ASSEMBLER  INTERFACE                                                            02/16/2015 01:26:32 PAGE     1
+
+
+MACRO ASSEMBLER A51 V8.02b
+OBJECT MODULE PLACED IN interface.OBJ
+ASSEMBLER INVOKED BY: C:\Keil_v5\C51\BIN\A51.EXE interface.a51 NOMOD51 SET(SMALL) DEBUG EP
+
+LOC  OBJ            LINE     SOURCE
+
+                       1     ;#include <89c51rx2.inc>
+                +1     2  +1 $save     
+                +1   191  +1 $restore 
+                     192     
+                     193     ;#include "battleship.inc"
+                +1   194  +1 $save     
+                +1   230  +1 $restore 
+                     231     
+                     232     
+                     233     NAME INTERFACE
+                     234     
+                     235     PUBLIC CONFIG_TMR0
+                     236     PUBLIC CHECK_ESC
+                     237     PUBLIC CONFIG_EX0_PS2
+                     238     
+                     239     PUBLIC CONFIG_TMR1
+                     240     PUBLIC CONFIG_RS232
+                     241     PUBLIC SEND_RS232
+                     242     PUBLIC RECEIVE_PS2
+                     243     PUBLIC ISRTMR1
+                     244     PUBLIC WAITING_MODEINSRT
+                     245     PUBLIC WAITING_MODE
+                     246     
+                     247     EXTRN CODE (SENDSTRMODE)
+                     248     EXTRN CODE (SENDMODEINSRT)
+                     249     
+                     250     INTERFACECODE SEGMENT CODE
+----                 251     RSEG INTERFACECODE
+                     252     
+  00B2               253     SCLK    EQU             P3.2
+  00B4               254     SDATA   EQU             P3.4
+                     255     
+0000                 256     CONFIG_TMR0:
+0000 5389F0          257         ANL TMOD,#0F0h                              ;Timer 0 mode 2 with software gate
+0003 438902          258             ORL TMOD,#02h                           ;GATE0=0; C/T0'=1; M10=1; M00=0;
+0006 758C00          259             MOV TH0,#0                                      ;init values
+0009 758A00          260             MOV TL0,#0;             
+000C D28C            261         SETB TR0
+000E 22              262             RET
+                     263             
+000F                 264     CONFIG_TMR1:
+000F 753B00          265             MOV SEGUNDO,#0
+0012 753C00          266             MOV MINUTO,#0
+0015 753D64          267             MOV LOOPS1SEC,#100
+0018 438910          268             ORL TMOD,#10H
+001B 758DD8          269             MOV TH1,#HIGH(-10000)
+001E 758BF0          270             MOV TL1,#LOW(-10000)
+0021 D2AB            271             SETB ET1
+0023 22              272             RET
+0024                 273     ISRTMR1:
+0024 758BF0          274             MOV TL1,#LOW(-10000)            ;reload do timer
+0027 758DD8          275         MOV TH1,#HIGH(-10000)               ;reload do timer
+002A C0D0            276             PUSH PSW                                        ;proposito disto é principalmente g
+                             uardar o valor do CARRY
+002C 153D            277             DEC LOOPS1SEC
+002E C0E0            278             PUSH ACC
+0030 E53D            279             MOV A,LOOPS1SEC
+0032 6005            280             JZ INCSEGUNDO
+A51 MACRO ASSEMBLER  INTERFACE                                                            02/16/2015 01:26:32 PAGE     2
+
+0034 D0E0            281             POP ACC
+0036 D0D0            282             POP PSW                                         ;recupero o valor do CARRY
+0038 32              283             RETI
+0039                 284             INCSEGUNDO:
+0039 753D64          285                     MOV LOOPS1SEC,#100
+003C 053B            286                     INC SEGUNDO
+003E E53B            287                     MOV A,SEGUNDO
+0040 C3              288                     CLR C
+0041 B43C00          289                     CJNE A,#60,$+3                  ;verifica se os segundos são menores do que
+                              60
+0044 5005            290                     JNC INCMINUTO
+0046 D0E0            291                     POP ACC
+0048 D0D0            292                     POP PSW
+004A 32              293                     RETI
+004B                 294                     INCMINUTO:
+004B 753B00          295                             MOV SEGUNDO,#0
+004E 053C            296                             INC MINUTO
+0050 D0E0            297                             POP ACC
+0052 D0D0            298                             POP PSW
+0054 32              299                             RETI
+0055                 300     CONFIG_RS232:
+0055 438780          301             ORL PCON,#80H               ;CONFIGURAR COMUNICAÇÃO PELA PORTA SÉRIE, dobra o baud 
+                             rate
+0058 759B1E          302             MOV BDRCON,#1EH             ;configura o BDR interno como generator 
+005B 759AD9          303             MOV BRL,#217                ;BAUDRATE 9600
+005E 759860          304             MOV SCON,#60H
+                     305     
+0061 22              306             RET
+0062                 307     CONFIG_EX0_PS2:
+0062 D2B2            308         SETB SCLK                                                   ;SELECIONA OS PINOS USADOS 
+                             PELO PS2 COMO ENTRADAS
+0064 D2B4            309         SETB SDATA                                                  ; 
+                     310     
+0066 C288            311         CLR IT0                             ;opera por nível e a 0
+0068 D2B2            312         SETB P3.2
+006A D2A8            313         SETB EX0                            ;ATIVA INTERRUPÇÃO EXTERNA (DO CLOCK
+006C 22              314         RET
+                     315     
+006D                 316     CHECK_ESC:
+006D C2A8            317         CLR EX0                             ;DESATIVA
+006F 20B41D          318         JB SDATA,NOT_ESC                                    ;start bit invalido
+0072 30B2FD          319         JNB SCLK,$
+0075 1100     F      320         ACALL READBYTE                      ;Lê um byte
+0077                 321         LOOPb:
+0077 1100     F      322                     ACALL RECEIVE_11BITS            ;recebe outro
+0079 B4F0FB          323                     CJNE A,#0F0H,LOOPb              ;verifica se foi solto
+007C 1100     F      324             ACALL RECEIVE_11BITS                ;le novamente
+                     325     
+007E B4760E          326         CJNE A,#76H,NOT_ESC         ;caso for pressionada ESC
+0081 D0E0            327         POP ACC
+0083 D0E0            328         POP ACC                     ;retirar valor de retorno da função
+0085 D0E0            329         POP ACC                     
+0087 D0E0            330         POP ACC                     ;sair da interrupção e fazer RESET
+0089 E4              331         CLR A
+008A C0E0            332         PUSH ACC                    ;retirando os valores armazenados do LCALL e substituido po
+                             r 00
+008C C0E0            333         PUSH ACC
+008E 32              334         RETI                                                ;fecha a interrupçao e salta para r
+                             eset
+008F                 335         NOT_ESC:
+008F D2A8            336         SETB EX0
+0091 22              337         RET
+                     338         
+0092                 339     WAITING_MODE:
+0092 120000   F      340             LCALL SENDSTRMODE                           ;selecionar modo de jogo
+0095                 341                     RCV_MODE:
+A51 MACRO ASSEMBLER  INTERFACE                                                            02/16/2015 01:26:32 PAGE     3
+
+0095 1100     F      342                             ACALL RECEIVE_PS2                   ;receber pelo ps2 tecla precion
+                             ada
+0097 B43108          343                             CJNE A,#'1',CHECK_2                 ;caso for '1' ou '2' seleciona 
+                             as configurações do modo respetivo
+009A C206            344                             CLR AUTOGAME
+009C 740A            345                 MOV A,#10
+009E 120000   F      346                 LCALL SEND_RS232
+00A1 22              347                 RET
+00A2                 348                             CHECK_2:
+00A2 B432F0          349                                     CJNE A,#'2',RCV_MODE            ;se não volta a esperar por
+                              um '1' ou '2'
+00A5 D206            350                                     SETB AUTOGAME
+00A7 740A            351                     MOV A,#10
+00A9 120000   F      352                     LCALL SEND_RS232
+00AC 22              353                                     RET
+00AD                 354     WAITING_MODEINSRT:
+00AD 120000   F      355         LCALL SENDMODEINSRT                         ;pedir ao utlizador se pretende inserir aut
+                             omaricamente (Y) ou não (N)
+00B0                 356                     RCV_INSRT:
+00B0 1100     F      357                             ACALL RECEIVE_PS2
+00B2 B45908          358                             CJNE A,#'Y',CHECK_N             ;
+00B5 D207            359                 SETB AUTOINSRT
+00B7 740A            360                 MOV A,#10
+00B9 120000   F      361                 LCALL SEND_RS232
+00BC 22              362                 RET
+00BD                 363                             CHECK_N:
+00BD B44EF0          364                                     CJNE A,#'N',RCV_INSRT
+00C0 C207            365                                     CLR AUTOINSRT
+00C2 740A            366                     MOV A,#10                                       ;new line
+00C4 120000   F      367                     LCALL SEND_RS232
+00C7 22              368                                     RET
+                     369     
+00C8                 370     SEND_RS232:
+00C8 2099FD          371             JB TI,$
+00CB F599            372             MOV SBUF,A
+00CD 3099FD          373             JNB TI,$
+00D0 C299            374             CLR TI
+00D2 22              375             RET
+                     376             
+00D3                 377     RECEIVE_PS2:
+00D3 D2B2            378             SETB SCLK                                                       ;clock começa a 1
+00D5 D2B4            379         SETB SDATA                                                  ;leitura do valor do pino P
+                             2.1 
+00D7 C2A8            380         CLR EX0                                                     ;desativar a interrupção pr
+                             ovocada pelo clock
+00D9 C082            381             PUSH DPL
+00DB C083            382             PUSH DPH
+00DD                 383             LOOP:
+00DD 1100     F      384                     ACALL RECEIVE_11BITS
+00DF B4F0FB          385                     CJNE A,#0F0H,LOOP
+00E2 1100     F      386             ACALL RECEIVE_11BITS
+00E4 B47603          387         CJNE A,#76H,NOT_KEYESC         ;caso for pressionada ESC
+00E7 020000          388         JMP 00H
+00EA                 389        NOT_KEYESC:
+00EA FA              390             MOV R2,A                        ;guardar num registo para que se possa utilizar o a
+                             cumulador para procurar tecla
+00EB 900000   F      391             MOV DPTR, #TABLE_PS2
+00EE 1100     F      392             ACALL FINDKEY
+00F0 1100     F      393             ACALL SEND_RS232
+                     394     
+00F2 D083            395             POP DPH
+00F4 D082            396             POP DPL
+00F6 D2A8            397         SETB EX0
+00F8 22              398             RET
+                     399         
+00F9                 400             RECEIVE_11BITS:
+A51 MACRO ASSEMBLER  INTERFACE                                                            02/16/2015 01:26:32 PAGE     4
+
+00F9 1100     F      401             ACALL READ_BIT                                          ;esperar pelo start bit
+00FB                 402             READBYTE:                                                       ;le byte
+00FB 7F08            403                     MOV R7,#8                                               ;Byte = 8 bits     
+                                          
+00FD E4              404                     CLR A
+00FE                 405                     RBLOOP: 
+00FE 20B2FD          406                             JB SCLK,$                                       ;esperar que a linh
+                             a de relógio venha a zero, está a zero => ler bit
+0101 A2B4            407                             MOV C,SDATA                             ;ler de P2.1 para o carry
+0103 13              408                             RRC A
+0104 30B2FD          409                             JNB SCLK,$                                      ;esperar que o reló
+                             gio volte a nível alto para poder ler bit seguinte
+0107 DFF5            410                     DJNZ R7,RBLOOP                                  ;esperar que a linha de rel
+                             ógio volte para um   
+0109 1100     F      411             ACALL READ_BIT                                          ;espera pelo bit de paridad
+                             e
+010B                 412             READ_BIT:                                                       ;espera pelo stop b
+                             it
+010B 20B2FD          413                     JB SCLK,$
+010E 30B2FD          414                     JNB SCLK,$
+0111 22              415             RET
+                     416     
+0112                 417     FINDKEY:
+0112 E4              418             CLR A                               
+0113 93              419             MOVC A,@A+DPTR                      ;procura na tabela escrita na memoria de codigo
+                              pelo codigo igual
+0114 6007            420             JZ RECEIVE_END                      ;caso encontrar 0 significa que chegou ao fim d
+                             a tabela
+0116 6A              421             XRL A,R2                            ;no r2 é que está contido a tecla a procura, ca
+                             so forem iguais com o Xorl invertem e ficam a 0
+0117 6005            422             JZ FOUNDKEY
+0119 A3              423             INC DPTR                            ;salta duas vezes para que não apanhe a corresp
+                             ondencia em codigo ASCII da tecla pressionada
+011A A3              424             INC DPTR
+011B 80F5            425             JMP FINDKEY
+                     426     
+011D                 427     RECEIVE_END:
+011D 22              428             RET
+                     429             
+011E                 430     FOUNDKEY:
+011E A3              431             INC DPTR                            ;caso encontrou, incremanta para a converter em
+                              codigo ascii (já presente na tabela)
+011F E4              432             CLR A
+0120 93              433             MOVC A,@A+DPTR
+0121 22              434             RET
+                     435     
+                     436     
+0122                 437     TABLE_PS2:
+                     438             
+0122 1C41            439             DB 01Ch,'A'
+0124 3242            440             DB 032h,'B'
+0126 2143            441             DB 021h,'C'
+0128 2344            442             DB 023h,'D'
+012A 2445            443             DB 024h,'E'
+012C 2B46            444             DB 02Bh,'F'
+012E 3447            445             DB 034h,'G'
+0130 3348            446             DB 033h,'H'
+0132 4349            447             DB 043h,'I'
+0134 3B4A            448             DB 03Bh,'J'
+0136 424B            449             DB 042h,'K'
+0138 4B4C            450             DB 04Bh,'L'
+013A 3A4D            451             DB 03Ah,'M'
+013C 314E            452             DB 031h,'N'
+013E 444F            453             DB 044h,'O'
+0140 4D50            454             DB 04Dh,'P'
+0142 1551            455             DB 015h,'Q'
+A51 MACRO ASSEMBLER  INTERFACE                                                            02/16/2015 01:26:32 PAGE     5
+
+0144 2D52            456             DB 02Dh,'R'
+0146 1B53            457             DB 01Bh,'S'
+0148 2C54            458             DB 02Ch,'T'
+014A 3C55            459             DB 03Ch,'U'
+014C 2A56            460             DB 02Ah,'V'
+014E 1D57            461             DB 01Dh,'W'
+0150 2258            462             DB 022h,'X'
+0152 3559            463             DB 035h,'Y'
+0154 1A5A            464             DB 01Ah,'Z'
+                     465             
+                     466             
+0156 4530            467             DB 045h,'0'
+0158 1631            468             DB 016h,'1'
+015A 1E32            469             DB 01Eh,'2'
+015C 2633            470             DB 026h,'3'
+015E 2534            471             DB 025h,'4'
+0160 2E35            472             DB 02Eh,'5'
+0162 3636            473             DB 036h,'6'
+0164 3D37            474             DB 03Dh,'7'
+0166 3E38            475             DB 03Eh,'8'
+0168 4639            476             DB 046h,'9'     
+                     477     
+016A 00              478             DB 0            ;break
+                     479     END
+A51 MACRO ASSEMBLER  INTERFACE                                                            02/16/2015 01:26:32 PAGE     6
+
+SYMBOL TABLE LISTING
+------ ----- -------
+
+
+N A M E             T Y P E  V A L U E   ATTRIBUTES
+
+AC . . . . . . . .  B ADDR   00D0H.6 A   
+ACC. . . . . . . .  D ADDR   00E0H   A   
+ALRCOORD . . . . .  B ADDR   0020H.2 A   
+AUTOGAME . . . . .  B ADDR   0020H.6 A   
+AUTOINSRT. . . . .  B ADDR   0020H.7 A   
+AUTOREG. . . . . .  D ADDR   003AH   A   
+AUXR . . . . . . .  D ADDR   008EH   A   
+AUXR1. . . . . . .  D ADDR   00A2H   A   
+B. . . . . . . . .  D ADDR   00F0H   A   
+BDRCON . . . . . .  D ADDR   009BH   A   
+BOARDS . . . . . .  N NUMB   0080H   A   
+BOARD_1DEF . . . .  I ADDR   0098H   A   
+BOARD_1HIT . . . .  I ADDR   0080H   A   
+BOARD_2DEF . . . .  I ADDR   0090H   A   
+BOARD_2HIT . . . .  I ADDR   0088H   A   
+BRL. . . . . . . .  D ADDR   009AH   A   
+BSHIPREG . . . . .  D ADDR   0020H   A   
+CCAP0H . . . . . .  D ADDR   00FAH   A   
+CCAP0L . . . . . .  D ADDR   00EAH   A   
+CCAP1H . . . . . .  D ADDR   00FBH   A   
+CCAP1L . . . . . .  D ADDR   00EBH   A   
+CCAP2H . . . . . .  D ADDR   00FCH   A   
+CCAP2L . . . . . .  D ADDR   00ECH   A   
+CCAP3H . . . . . .  D ADDR   00FDH   A   
+CCAP3L . . . . . .  D ADDR   00EDH   A   
+CCAP4H . . . . . .  D ADDR   00FEH   A   
+CCAP4L . . . . . .  D ADDR   00EEH   A   
+CCAPM0 . . . . . .  D ADDR   00DAH   A   
+CCAPM1 . . . . . .  D ADDR   00DBH   A   
+CCAPM2 . . . . . .  D ADDR   00DCH   A   
+CCAPM3 . . . . . .  D ADDR   00DDH   A   
+CCAPM4 . . . . . .  D ADDR   00DEH   A   
+CCF0 . . . . . . .  D ADDR   00D8H   A   
+CCF1 . . . . . . .  D ADDR   00D9H   A   
+CCF2 . . . . . . .  D ADDR   00DAH   A   
+CCF3 . . . . . . .  D ADDR   00DBH   A   
+CCF4 . . . . . . .  D ADDR   00DCH   A   
+CCON . . . . . . .  D ADDR   00D8H   A   
+CF . . . . . . . .  D ADDR   00DFH   A   
+CH . . . . . . . .  D ADDR   00F9H   A   
+CHECK_2. . . . . .  C ADDR   00A2H   R   SEG=INTERFACECODE
+CHECK_ESC. . . . .  C ADDR   006DH   R   SEG=INTERFACECODE
+CHECK_N. . . . . .  C ADDR   00BDH   R   SEG=INTERFACECODE
+CKCON0 . . . . . .  D ADDR   008FH   A   
+CKCON1 . . . . . .  D ADDR   00AFH   A   
+CKRL . . . . . . .  D ADDR   0096H   A   
+CL . . . . . . . .  D ADDR   00E9H   A   
+CMOD . . . . . . .  D ADDR   00D9H   A   
+COD_ASCII. . . . .  D ADDR   0031H   A   
+CONFIG_EX0_PS2 . .  C ADDR   0062H   R   SEG=INTERFACECODE
+CONFIG_RS232 . . .  C ADDR   0055H   R   SEG=INTERFACECODE
+CONFIG_TMR0. . . .  C ADDR   0000H   R   SEG=INTERFACECODE
+CONFIG_TMR1. . . .  C ADDR   000FH   R   SEG=INTERFACECODE
+CP_RL2 . . . . . .  B ADDR   00C8H.0 A   
+CR . . . . . . . .  D ADDR   00DEH   A   
+CY . . . . . . . .  B ADDR   00D0H.7 A   
+C_T2 . . . . . . .  B ADDR   00C8H.1 A   
+DPH. . . . . . . .  D ADDR   0083H   A   
+DPL. . . . . . . .  D ADDR   0082H   A   
+EA . . . . . . . .  B ADDR   00A8H.7 A   
+A51 MACRO ASSEMBLER  INTERFACE                                                            02/16/2015 01:26:32 PAGE     7
+
+EC . . . . . . . .  B ADDR   00A8H.6 A   
+ES . . . . . . . .  B ADDR   00A8H.4 A   
+ET0. . . . . . . .  B ADDR   00A8H.1 A   
+ET1. . . . . . . .  B ADDR   00A8H.3 A   
+ET2. . . . . . . .  B ADDR   00A8H.5 A   
+EX0. . . . . . . .  B ADDR   00A8H.0 A   
+EX1. . . . . . . .  B ADDR   00A8H.2 A   
+EXEN2. . . . . . .  B ADDR   00C8H.3 A   
+EXF2 . . . . . . .  B ADDR   00C8H.6 A   
+F0 . . . . . . . .  B ADDR   00D0H.5 A   
+FCON . . . . . . .  D ADDR   00D1H   A   
+FHIT . . . . . . .  B ADDR   0020H.1 A   
+FINDKEY. . . . . .  C ADDR   0112H   R   SEG=INTERFACECODE
+FOUNDKEY . . . . .  C ADDR   011EH   R   SEG=INTERFACECODE
+IE0. . . . . . . .  B ADDR   0088H.1 A   
+IE1. . . . . . . .  B ADDR   0088H.3 A   
+IEN0 . . . . . . .  D ADDR   00A8H   A   
+IEN1 . . . . . . .  D ADDR   00B1H   A   
+INCMINUTO. . . . .  C ADDR   004BH   R   SEG=INTERFACECODE
+INCSEGUNDO . . . .  C ADDR   0039H   R   SEG=INTERFACECODE
+INT0 . . . . . . .  B ADDR   00B0H.2 A   
+INT1 . . . . . . .  B ADDR   00B0H.3 A   
+INTERFACE. . . . .  N NUMB   -----       
+INTERFACECODE. . .  C SEG    016BH       REL=UNIT
+IPH0 . . . . . . .  D ADDR   00B7H   A   
+IPH1 . . . . . . .  D ADDR   00B3H   A   
+IPL0 . . . . . . .  D ADDR   00B8H   A   
+IPL1 . . . . . . .  D ADDR   00B2H   A   
+IPOSX. . . . . . .  D ADDR   0037H   A   
+IPOSY. . . . . . .  D ADDR   0036H   A   
+ISRTMR1. . . . . .  C ADDR   0024H   R   SEG=INTERFACECODE
+IT0. . . . . . . .  B ADDR   0088H.0 A   
+IT1. . . . . . . .  B ADDR   0088H.2 A   
+KBE. . . . . . . .  D ADDR   009DH   A   
+KBF. . . . . . . .  D ADDR   009EH   A   
+KBLS . . . . . . .  D ADDR   009CH   A   
+LOOP . . . . . . .  C ADDR   00DDH   R   SEG=INTERFACECODE
+LOOPB. . . . . . .  C ADDR   0077H   R   SEG=INTERFACECODE
+LOOPS1SEC. . . . .  D ADDR   003DH   A   
+LPOSX. . . . . . .  D ADDR   0035H   A   
+LPOSY. . . . . . .  D ADDR   0034H   A   
+MINUTO . . . . . .  D ADDR   003CH   A   
+NOT_ESC. . . . . .  C ADDR   008FH   R   SEG=INTERFACECODE
+NOT_KEYESC . . . .  C ADDR   00EAH   R   SEG=INTERFACECODE
+OV . . . . . . . .  B ADDR   00D0H.2 A   
+P. . . . . . . . .  B ADDR   00D0H.0 A   
+P0 . . . . . . . .  D ADDR   0080H   A   
+P1 . . . . . . . .  D ADDR   0090H   A   
+P2 . . . . . . . .  D ADDR   00A0H   A   
+P3 . . . . . . . .  D ADDR   00B0H   A   
+PCON . . . . . . .  D ADDR   0087H   A   
+POSX . . . . . . .  D ADDR   0033H   A   
+POSY . . . . . . .  D ADDR   0032H   A   
+PPCL . . . . . . .  B ADDR   00B8H.6 A   
+PSL. . . . . . . .  B ADDR   00B8H.4 A   
+PSW. . . . . . . .  D ADDR   00D0H   A   
+PT0L . . . . . . .  B ADDR   00B8H.1 A   
+PT1L . . . . . . .  B ADDR   00B8H.3 A   
+PT2L . . . . . . .  B ADDR   00B8H.5 A   
+PX0L . . . . . . .  B ADDR   00B8H.0 A   
+PX1L . . . . . . .  B ADDR   00B8H.2 A   
+RAND8REG . . . . .  D ADDR   0039H   A   
+RB8. . . . . . . .  B ADDR   0098H.2 A   
+RBLOOP . . . . . .  C ADDR   00FEH   R   SEG=INTERFACECODE
+RCAP2H . . . . . .  D ADDR   00CBH   A   
+RCAP2L . . . . . .  D ADDR   00CAH   A   
+A51 MACRO ASSEMBLER  INTERFACE                                                            02/16/2015 01:26:32 PAGE     8
+
+RCLK . . . . . . .  B ADDR   00C8H.5 A   
+RCV_INSRT. . . . .  C ADDR   00B0H   R   SEG=INTERFACECODE
+RCV_MODE . . . . .  C ADDR   0095H   R   SEG=INTERFACECODE
+RD . . . . . . . .  B ADDR   00B0H.7 A   
+READBYTE . . . . .  C ADDR   00FBH   R   SEG=INTERFACECODE
+READ_BIT . . . . .  C ADDR   010BH   R   SEG=INTERFACECODE
+RECEIVE_11BITS . .  C ADDR   00F9H   R   SEG=INTERFACECODE
+RECEIVE_END. . . .  C ADDR   011DH   R   SEG=INTERFACECODE
+RECEIVE_PS2. . . .  C ADDR   00D3H   R   SEG=INTERFACECODE
+REN. . . . . . . .  B ADDR   0098H.4 A   
+RI . . . . . . . .  B ADDR   0098H.0 A   
+RS0. . . . . . . .  B ADDR   00D0H.3 A   
+RS1. . . . . . . .  B ADDR   00D0H.4 A   
+RXD. . . . . . . .  B ADDR   00B0H.0 A   
+SADDR. . . . . . .  D ADDR   00A9H   A   
+SADEN. . . . . . .  D ADDR   00B9H   A   
+SBUF . . . . . . .  D ADDR   0099H   A   
+SCLK . . . . . . .  B ADDR   00B0H.2 A   
+SCON . . . . . . .  D ADDR   0098H   A   
+SDATA. . . . . . .  B ADDR   00B0H.4 A   
+SEGUNDO. . . . . .  D ADDR   003BH   A   
+SENDMODEINSRT. . .  C ADDR   -----       EXT
+SENDSTRMODE. . . .  C ADDR   -----       EXT
+SEND_RS232 . . . .  C ADDR   00C8H   R   SEG=INTERFACECODE
+SHIP_NUMBER. . . .  D ADDR   0038H   A   
+SHIP_ORI . . . . .  B ADDR   0020H.3 A   
+SM0. . . . . . . .  B ADDR   0098H.7 A   
+SM1. . . . . . . .  B ADDR   0098H.6 A   
+SM2. . . . . . . .  B ADDR   0098H.5 A   
+SP . . . . . . . .  D ADDR   0081H   A   
+SPCON. . . . . . .  D ADDR   00C3H   A   
+SPDAT. . . . . . .  D ADDR   00C5H   A   
+SPSTA. . . . . . .  D ADDR   00C4H   A   
+T0 . . . . . . . .  B ADDR   00B0H.4 A   
+T1 . . . . . . . .  B ADDR   00B0H.5 A   
+T2CON. . . . . . .  D ADDR   00C8H   A   
+T2MOD. . . . . . .  D ADDR   00C9H   A   
+TABLE_PS2. . . . .  C ADDR   0122H   R   SEG=INTERFACECODE
+TB8. . . . . . . .  B ADDR   0098H.3 A   
+TCLK . . . . . . .  B ADDR   00C8H.4 A   
+TCON . . . . . . .  D ADDR   0088H   A   
+TF0. . . . . . . .  B ADDR   0088H.5 A   
+TF1. . . . . . . .  B ADDR   0088H.7 A   
+TF2. . . . . . . .  B ADDR   00C8H.7 A   
+TH0. . . . . . . .  D ADDR   008CH   A   
+TH1. . . . . . . .  D ADDR   008DH   A   
+TH2. . . . . . . .  D ADDR   00CDH   A   
+TI . . . . . . . .  B ADDR   0098H.1 A   
+TL0. . . . . . . .  D ADDR   008AH   A   
+TL1. . . . . . . .  D ADDR   008BH   A   
+TL2. . . . . . . .  D ADDR   00CCH   A   
+TMOD . . . . . . .  D ADDR   0089H   A   
+TR0. . . . . . . .  B ADDR   0088H.4 A   
+TR1. . . . . . . .  B ADDR   0088H.6 A   
+TR2. . . . . . . .  B ADDR   00C8H.2 A   
+TXD. . . . . . . .  B ADDR   00B0H.1 A   
+VALID_COORD. . . .  B ADDR   0020H.0 A   
+VALID_SHIP . . . .  B ADDR   0020H.4 A   
+VLD_LMT. . . . . .  B ADDR   0020H.5 A   
+WAITING_MODE . . .  C ADDR   0092H   R   SEG=INTERFACECODE
+WAITING_MODEINSRT.  C ADDR   00ADH   R   SEG=INTERFACECODE
+WDTPRG . . . . . .  D ADDR   00A7H   A   
+WDTRST . . . . . .  D ADDR   00A6H   A   
+WR . . . . . . . .  B ADDR   00B0H.6 A   
+
+
+REGISTER BANK(S) USED: 0 
+
+
+ASSEMBLY COMPLETE.  0 WARNING(S), 0 ERROR(S)

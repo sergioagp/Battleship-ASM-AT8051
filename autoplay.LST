@@ -1,0 +1,519 @@
+A51 MACRO ASSEMBLER  AUTOPLAY                                                             02/16/2015 01:26:32 PAGE     1
+
+
+MACRO ASSEMBLER A51 V8.02b
+OBJECT MODULE PLACED IN autoplay.OBJ
+ASSEMBLER INVOKED BY: C:\Keil_v5\C51\BIN\A51.EXE autoplay.A51 NOMOD51 SET(SMALL) DEBUG EP
+
+LOC  OBJ            LINE     SOURCE
+
+                       1     ;#include <89c51rx2.inc>
+                +1     2  +1 $save     
+                +1   191  +1 $restore 
+                     192     
+                     193     ;#include "battleship.inc"
+                +1   194  +1 $save     
+                +1   230  +1 $restore 
+                     231     
+                     232     
+                     233     NAME AUTOPLAY
+                     234     
+                     235     PUBLIC AUTO_MOVE
+                     236     PUBLIC RND_INSERT
+                     237     
+                     238     EXTRN CODE (CHECK_SHIP)
+                     239     EXTRN CODE (INSERT_SHIP)
+                     240     EXTRN CODE (CHECK_COORD)
+                     241     EXTRN CODE (ALREADY_COORD)
+                     242     EXTRN CODE (HIT_MISS_COORD)
+                     243     
+                     244     AUTOPLAY SEGMENT CODE
+----                 245     RSEG AUTOPLAY
+                     246     
+                     247     ;generates an 8 bit pseudo-random number which is returned in Acc.
+                     248     ;one byte of memory must be available for rand8reg
+                     249     
+0000                 250     RAND8:                                                                  ;https://www.pjrc.c
+                             om/tech/8051/rand.html
+0000 E539            251         MOV A, Rand8reg
+0002 7003            252             JNZ     RAND8b
+0004 F4              253             CPL     A               ;A=FF
+0005 F539            254             MOV     Rand8reg, A     ;Rand8reg=FF
+0007                 255     rand8b:
+0007 54B8            256         ANL A,  #10111000b   ;operação para modificar bit de paridade do numero de 1s presente 
+                             nas 4localizaçoes indicadas
+0009 A2D0            257             MOV     C, P                    ;passa para o carry para depois o acumluador ser ro
+                             dado com o mesmo
+000B E539            258             MOV     A, Rand8reg
+000D 33              259             RLC     A                   ;roda com o bit de paridade
+000E F539            260             MOV     Rand8reg, A         ;prepara prox com o seu valor aleatorio
+0010 22              261             RET
+                     262     
+0011                 263     RND_COORD:
+0011 753200          264             MOV POSY,#0   ;COORDY
+                     265         ;MOV POSX,#0   ;COORDX
+0014 120000   F      266         LCALL RAND8
+0017 C3              267         CLR C
+0018 13              268         RRC A
+0019 C3              269         CLR C
+001A 13              270         RRC A           ;A a dividir por 4(255->64
+001B C0E0            271         PUSH ACC
+001D 5407            272         ANL A,#07H
+001F F533            273         MOV POSX,A        ;ARMAZENAR NA COORDX O VALOR OBTIDO
+0021 D0E0            274         POP ACC
+0023 C4              275         SWAP A          ;trocar nibble para obter coordY
+0024 30E702          276         JNB ACC.7,SKIP_INCY ;caso esteja acima de 7, significa que precisa de incrementar 1 lin
+                             ha
+0027 0532            277         INC POSY
+A51 MACRO ASSEMBLER  AUTOPLAY                                                             02/16/2015 01:26:32 PAGE     2
+
+0029                 278     SKIP_INCY:
+0029 540F            279         ANL A,#0FH          ;obtem nibble inferior
+002B 23              280         RL A                ;multiplica por 2
+002C 2532            281         ADD A,POSY            ;e addicona +1 caso o nible superior fosse maior que 7
+002E F532            282         MOV POSY,A            ;armazena na coordY
+0030 22              283         RET
+                     284     
+                     285     
+0031                 286     RND_INSERT:
+0031 1100     F      287             ACALL RAND8
+0033 13              288             RRC   A
+0034 9203            289             MOV   SHIP_ORI,C                   ;Orientação aletória, 0-h,1-v
+0036 1100     F      290                     ACALL RND_COORD                  ;Coordaleatoria                
+0038 22              291             RET
+                     292     
+0039                 293     AUTO_MOVE:
+0039 E53A            294         MOV A,AUTOreg
+003B 5403            295         ANL A,#03
+003D                 296         SWITCH_ACC:
+003D 900000   F      297             MOV DPTR,#CASEJUMP
+0040 23              298             RL A
+0041 73              299             JMP @A+DPTR
+0042                 300         CASEJUMP:
+0042 0100     F      301         AJMP RND_VLDPLAY
+0044 0100     F      302         AJMP FIND_DIR
+0046 0100     F      303         AJMP FIND_1LIMIT
+0048 0100     F      304         AJMP FIND_2LIMIT
+004A                 305     RND_VLDPLAY:
+004A 533AF0          306         ANL AUTOREG,#0F0H
+004D 1100     F      307         ACALL RND_COORD
+004F 120000   F      308         LCALL ALREADY_COORD         ;verifica se já acertou nessa coordenada
+0052 2002F5          309             JB      ALRCOORD,RND_VLDPLAY    ;caso sim volta a esperar nova coordenada
+0055 853335          310         MOV LPOSX,POSX
+0058 853234          311         MOV LPOSY,POSY
+005B 853337          312         MOV IPOSX,POSX
+005E 853236          313         MOV IPOSY,POSY
+0061 120000   F      314         LCALL HIT_MISS_COORD        ;preenche no tabuleiro de ataque  
+0064 300102          315         JNB FHIT,CONTINUE_RND
+0067 053A            316             INC AUTOreg
+0069                 317         CONTINUE_RND:
+0069 22              318             RET
+                     319     
+006A                 320     FIND_DIR:
+006A 7CC9            321         MOV R4,#11001001B               ;limite de tentativas de procura de jogada valida
+006C                 322     FINDING_DIR:
+006C 853533          323         MOV POSX,LPOSX
+006F 853432          324         MOV POSY,LPOSY 
+                     325     
+0072 EC              326         MOV A,R4                       ;limite de tentativas de procura de jogada valida
+0073 C3              327         CLR C
+0074 13              328         RRC   A
+0075 FC              329         MOV R4,A
+0076 4024            330         JC FIND_ON_HORIZ
+0078 EC              331             MOV A,R4
+                     332            ; CLR C
+0079 13              333             RRC   A
+007A FC              334             MOV R4,A
+007B 4007            335             JC INC_POSY
+007D 533AF3          336                 ANL AUTOREG,#0F3H   ;MODdir1=0 MODdir0=0
+                     337                                     ;caso acertar o barco está dirigido para cima
+0080 1532            338                 DEC POSY
+0082 8008            339                 JMP CHECK_VLDV
+0084                 340             INC_POSY:
+0084 533AF3          341                 ANL AUTOREG,#0F3H    ;caso acertar o barco está dirigido para baixo
+0087 433A04          342                 ORL AUTOREG,#04     ;MODdir1=0 MODdir0=1     
+                     343                                
+A51 MACRO ASSEMBLER  AUTOPLAY                                                             02/16/2015 01:26:32 PAGE     3
+
+008A 0532            344                 INC POSY
+                     345                 ;JMP CHECK_VLDV
+008C                 346         CHECK_VLDV:
+008C 753100          347         MOV COD_ASCII,#0
+008F E532            348         MOV A,POSY
+0091 120000   F      349         LCALL CHECK_COORD
+0094 20002D          350         JB VALID_COORD,CHECK_VLD
+0097 EC              351         MOV A, R4
+0098 70D2            352         JNZ FINDING_DIR
+009A 80AE            353         JMP RND_VLDPLAY
+009C                 354         FIND_ON_HORIZ:
+009C EC              355             MOV A,R4
+009D C3              356             CLR C
+009E 13              357             RRC   A
+009F FC              358             MOV R4,A
+00A0 400A            359             JC INC_POSX
+00A2 533AF3          360                 ANL AUTOREG,#0F3H    ;caso acertar o barco está dirigido para a esquerda
+00A5 433A08          361                 ORL AUTOREG,#08H
+                     362                                         ;MODdir1=1 MODdir0=0   
+00A8 1533            363                 DEC POSX
+00AA 8008            364                 JMP CHECK_VLDH
+00AC                 365             INC_POSX:
+00AC 533AF3          366                 ANL AUTOREG,#0F3H    ;caso acertar o barco está dirigido para a direita
+00AF 433A0C          367                 ORL AUTOREG,#0CH     ;MODdir1=1 MODdir0=1    
+00B2 0533            368                 INC POSX
+                     369                 
+00B4                 370         CHECK_VLDH:
+00B4 753100          371         MOV COD_ASCII,#0
+00B7 E533            372         MOV A,POSX
+00B9 120000   F      373         LCALL CHECK_COORD
+00BC 200005          374         JB VALID_COORD,CHECK_VLD
+00BF EC              375         MOV A, R4
+00C0 70AA            376         JNZ FINDING_DIR
+00C2 8086            377         JMP RND_VLDPLAY
+00C4                 378         CHECK_VLD:
+00C4 120000   F      379         LCALL ALREADY_COORD         ;verifica se já acertou nessa coordenada
+00C7 300206          380             JNB     ALRCOORD,EXECUTE2find   ;caso não volta a esperar nova coordenada
+00CA EC              381         MOV A, R4
+00CB 709F            382         JNZ FINDING_DIR
+00CD 020000   F      383         JMP RND_VLDPLAY
+00D0                 384     EXECUTE2find:
+00D0 120000   F      385         LCALL HIT_MISS_COORD        ;preenche no tabuleiro de ataque  
+00D3 300108          386         JNB FHIT,CONTINUE_FND
+00D6 853335          387             MOV LPOSX,POSX
+00D9 853234          388             MOV LPOSY,POSY
+00DC 053A            389             INC AUTOreg
+00DE                 390         CONTINUE_FND:
+00DE 22              391             RET
+                     392     
+00DF                 393     FIND_1LIMIT:
+00DF 853533          394         MOV POSX,LPOSX
+00E2 853432          395         MOV POSY,LPOSY 
+00E5 E53A            396         MOV A,AUTOREG
+00E7 540C            397         ANL A,#0CH
+00E9 03              398         RR A
+00EA 03              399         RR A                ;passar a direção para os bits menos significativos do acumulador
+00EB 900000   F      400         MOV DPTR,#CASEDIR
+00EE 23              401         RL A
+00EF 73              402         JMP @A+DPTR
+00F0                 403         CASEDIR:
+00F0 0100     F      404         AJMP DIR_UP
+00F2 0100     F      405         AJMP DIR_DOWN
+00F4 0100     F      406         AJMP DIR_LEFT
+                     407         ;AJMP DIR_RIGHT
+00F6                 408         DIR_RIGHT:
+00F6 0533            409             INC POSX
+A51 MACRO ASSEMBLER  AUTOPLAY                                                             02/16/2015 01:26:32 PAGE     4
+
+00F8 8015            410             JMP CHECK_HITVLDH
+00FA                 411         DIR_UP:
+00FA 1532            412             DEC POSY
+00FC 8002            413             JMP CHECK_HITVLDV
+                     414     
+00FE                 415         DIR_DOWN:
+00FE 0532            416             INC POSY
+0100                 417         CHECK_HITVLDV:
+0100 753100          418         MOV COD_ASCII,#0
+0103 E532            419         MOV A,POSY
+0105 120000   F      420         LCALL CHECK_COORD
+0108 30002B          421         JNB VALID_COORD,FIND_2LIMIT
+010B 800D            422         JMP CHECK_HITVLD
+                     423     
+010D                 424         DIR_LEFT:
+010D 1533            425             DEC POSX
+010F                 426         CHECK_HITVLDH:
+010F 753100          427         MOV COD_ASCII,#0
+0112 E533            428         MOV A,POSX
+0114 120000   F      429         LCALL CHECK_COORD
+0117 30001C          430         JNB VALID_COORD,FIND_2LIMIT
+                     431     
+011A                 432         CHECK_HITVLD:
+011A 120000   F      433         LCALL ALREADY_COORD         ;verifica se já acertou nessa coordenada
+011D 200216          434             JB      ALRCOORD,FIND_2LIMIT    ;caso sim volta a esperar nova coordenada
+0120 120000   F      435         LCALL HIT_MISS_COORD        ;preenche no tabuleiro de ataque  
+0123 300107          436         JNB FHIT,FOUNDLIMIT
+0126 853335          437             MOV LPOSX,POSX
+0129 853234          438             MOV LPOSY,POSY
+012C 22              439             RET
+012D                 440         FOUNDLIMIT:
+012D 853735          441             MOV LPOSX,IPOSX
+0130 853634          442             MOV LPOSY,IPOSY
+0133 053A            443             INC AUTOreg
+0135 22              444             RET
+0136                 445     FIND_2LIMIT:
+0136 433A03          446         ORL AUTOREG,#03H
+0139 853533          447         MOV POSX,LPOSX
+013C 853432          448         MOV POSY,LPOSY 
+013F E53A            449         MOV A,AUTOREG
+0141 540C            450         ANL A,#0CH
+0143 03              451         RR A
+0144 03              452         RR A                ;passar a direção para os bits menos significativos do acumulador
+0145 900000   F      453         MOV DPTR,#CASEINVDIR
+0148 23              454         RL A
+0149 73              455         JMP @A+DPTR
+014A                 456         CASEINVDIR:
+014A 0100     F      457         AJMP INVDIR_UP
+014C 0100     F      458         AJMP INVDIR_DOWN
+014E 0100     F      459         AJMP INVDIR_LEFT
+                     460         ;AJMP DIR_RIGHT
+0150                 461         INVDIR_RIGHT:
+0150 1533            462             DEC POSX
+0152 8016            463             JMP CHECK_HITVLD2H
+0154                 464         INVDIR_UP:
+0154 0532            465             INC POSY
+0156 8002            466             JMP CHECK_HITVLD2V
+0158                 467         INVDIR_DOWN:
+0158 1532            468             DEC POSY
+015A                 469          CHECK_HITVLD2V:
+015A 753100          470         MOV COD_ASCII,#0
+015D E533            471         MOV A,POSX
+015F 120000   F      472         LCALL CHECK_COORD
+0162 200013          473         JB VALID_COORD, CHECK_HITVLD2
+0165 020000   F      474         JMP RND_VLDPLAY
+0168                 475         INVDIR_LEFT:
+A51 MACRO ASSEMBLER  AUTOPLAY                                                             02/16/2015 01:26:32 PAGE     5
+
+0168 0533            476             INC POSX
+016A                 477         CHECK_HITVLD2H:
+016A 753100          478         MOV COD_ASCII,#0
+016D E533            479         MOV A,POSX
+016F 120000   F      480         LCALL CHECK_COORD
+0172 200003          481         JB VALID_COORD, CHECK_HITVLD2
+0175 020000   F      482         JMP RND_VLDPLAY
+0178                 483         CHECK_HITVLD2:
+0178 120000   F      484         LCALL ALREADY_COORD         ;verifica se já acertou nessa coordenada
+017B 300203          485             JNB     ALRCOORD, EXECUTE_move2
+017E 020000   F      486         JMP RND_VLDPLAY     ;caso sim volta a esperar nova coordenada
+0181                 487         EXECUTE_move2:
+0181 120000   F      488         LCALL HIT_MISS_COORD        ;preenche no tabuleiro de ataque  
+0184 300107          489         JNB FHIT,SHIPDESTROYD
+0187 853335          490             MOV LPOSX,POSX
+018A 853234          491             MOV LPOSY,POSY
+018D 22              492             RET
+018E                 493         SHIPDESTROYD:
+018E 853735          494             MOV LPOSX,IPOSX
+0191 853634          495             MOV LPOSY,IPOSY
+0194 753A00          496             MOV AUTOREG,#0   ;volta a fazer jogada aleatoria
+0197 22              497             RET
+                     498     END    
+A51 MACRO ASSEMBLER  AUTOPLAY                                                             02/16/2015 01:26:32 PAGE     6
+
+SYMBOL TABLE LISTING
+------ ----- -------
+
+
+N A M E             T Y P E  V A L U E   ATTRIBUTES
+
+AC . . . . . . . .  B ADDR   00D0H.6 A   
+ACC. . . . . . . .  D ADDR   00E0H   A   
+ALRCOORD . . . . .  B ADDR   0020H.2 A   
+ALREADY_COORD. . .  C ADDR   -----       EXT
+AUTOGAME . . . . .  B ADDR   0020H.6 A   
+AUTOINSRT. . . . .  B ADDR   0020H.7 A   
+AUTOPLAY . . . . .  C SEG    0198H       REL=UNIT
+AUTOREG. . . . . .  D ADDR   003AH   A   
+AUTO_MOVE. . . . .  C ADDR   0039H   R   SEG=AUTOPLAY
+AUXR . . . . . . .  D ADDR   008EH   A   
+AUXR1. . . . . . .  D ADDR   00A2H   A   
+B. . . . . . . . .  D ADDR   00F0H   A   
+BDRCON . . . . . .  D ADDR   009BH   A   
+BOARDS . . . . . .  N NUMB   0080H   A   
+BOARD_1DEF . . . .  I ADDR   0098H   A   
+BOARD_1HIT . . . .  I ADDR   0080H   A   
+BOARD_2DEF . . . .  I ADDR   0090H   A   
+BOARD_2HIT . . . .  I ADDR   0088H   A   
+BRL. . . . . . . .  D ADDR   009AH   A   
+BSHIPREG . . . . .  D ADDR   0020H   A   
+CASEDIR. . . . . .  C ADDR   00F0H   R   SEG=AUTOPLAY
+CASEINVDIR . . . .  C ADDR   014AH   R   SEG=AUTOPLAY
+CASEJUMP . . . . .  C ADDR   0042H   R   SEG=AUTOPLAY
+CCAP0H . . . . . .  D ADDR   00FAH   A   
+CCAP0L . . . . . .  D ADDR   00EAH   A   
+CCAP1H . . . . . .  D ADDR   00FBH   A   
+CCAP1L . . . . . .  D ADDR   00EBH   A   
+CCAP2H . . . . . .  D ADDR   00FCH   A   
+CCAP2L . . . . . .  D ADDR   00ECH   A   
+CCAP3H . . . . . .  D ADDR   00FDH   A   
+CCAP3L . . . . . .  D ADDR   00EDH   A   
+CCAP4H . . . . . .  D ADDR   00FEH   A   
+CCAP4L . . . . . .  D ADDR   00EEH   A   
+CCAPM0 . . . . . .  D ADDR   00DAH   A   
+CCAPM1 . . . . . .  D ADDR   00DBH   A   
+CCAPM2 . . . . . .  D ADDR   00DCH   A   
+CCAPM3 . . . . . .  D ADDR   00DDH   A   
+CCAPM4 . . . . . .  D ADDR   00DEH   A   
+CCF0 . . . . . . .  D ADDR   00D8H   A   
+CCF1 . . . . . . .  D ADDR   00D9H   A   
+CCF2 . . . . . . .  D ADDR   00DAH   A   
+CCF3 . . . . . . .  D ADDR   00DBH   A   
+CCF4 . . . . . . .  D ADDR   00DCH   A   
+CCON . . . . . . .  D ADDR   00D8H   A   
+CF . . . . . . . .  D ADDR   00DFH   A   
+CH . . . . . . . .  D ADDR   00F9H   A   
+CHECK_COORD. . . .  C ADDR   -----       EXT
+CHECK_HITVLD . . .  C ADDR   011AH   R   SEG=AUTOPLAY
+CHECK_HITVLD2. . .  C ADDR   0178H   R   SEG=AUTOPLAY
+CHECK_HITVLD2H . .  C ADDR   016AH   R   SEG=AUTOPLAY
+CHECK_HITVLD2V . .  C ADDR   015AH   R   SEG=AUTOPLAY
+CHECK_HITVLDH. . .  C ADDR   010FH   R   SEG=AUTOPLAY
+CHECK_HITVLDV. . .  C ADDR   0100H   R   SEG=AUTOPLAY
+CHECK_SHIP . . . .  C ADDR   -----       EXT
+CHECK_VLD. . . . .  C ADDR   00C4H   R   SEG=AUTOPLAY
+CHECK_VLDH . . . .  C ADDR   00B4H   R   SEG=AUTOPLAY
+CHECK_VLDV . . . .  C ADDR   008CH   R   SEG=AUTOPLAY
+CKCON0 . . . . . .  D ADDR   008FH   A   
+CKCON1 . . . . . .  D ADDR   00AFH   A   
+CKRL . . . . . . .  D ADDR   0096H   A   
+A51 MACRO ASSEMBLER  AUTOPLAY                                                             02/16/2015 01:26:32 PAGE     7
+
+CL . . . . . . . .  D ADDR   00E9H   A   
+CMOD . . . . . . .  D ADDR   00D9H   A   
+COD_ASCII. . . . .  D ADDR   0031H   A   
+CONTINUE_FND . . .  C ADDR   00DEH   R   SEG=AUTOPLAY
+CONTINUE_RND . . .  C ADDR   0069H   R   SEG=AUTOPLAY
+CP_RL2 . . . . . .  B ADDR   00C8H.0 A   
+CR . . . . . . . .  D ADDR   00DEH   A   
+CY . . . . . . . .  B ADDR   00D0H.7 A   
+C_T2 . . . . . . .  B ADDR   00C8H.1 A   
+DIR_DOWN . . . . .  C ADDR   00FEH   R   SEG=AUTOPLAY
+DIR_LEFT . . . . .  C ADDR   010DH   R   SEG=AUTOPLAY
+DIR_RIGHT. . . . .  C ADDR   00F6H   R   SEG=AUTOPLAY
+DIR_UP . . . . . .  C ADDR   00FAH   R   SEG=AUTOPLAY
+DPH. . . . . . . .  D ADDR   0083H   A   
+DPL. . . . . . . .  D ADDR   0082H   A   
+EA . . . . . . . .  B ADDR   00A8H.7 A   
+EC . . . . . . . .  B ADDR   00A8H.6 A   
+ES . . . . . . . .  B ADDR   00A8H.4 A   
+ET0. . . . . . . .  B ADDR   00A8H.1 A   
+ET1. . . . . . . .  B ADDR   00A8H.3 A   
+ET2. . . . . . . .  B ADDR   00A8H.5 A   
+EX0. . . . . . . .  B ADDR   00A8H.0 A   
+EX1. . . . . . . .  B ADDR   00A8H.2 A   
+EXECUTE2FIND . . .  C ADDR   00D0H   R   SEG=AUTOPLAY
+EXECUTE_MOVE2. . .  C ADDR   0181H   R   SEG=AUTOPLAY
+EXEN2. . . . . . .  B ADDR   00C8H.3 A   
+EXF2 . . . . . . .  B ADDR   00C8H.6 A   
+F0 . . . . . . . .  B ADDR   00D0H.5 A   
+FCON . . . . . . .  D ADDR   00D1H   A   
+FHIT . . . . . . .  B ADDR   0020H.1 A   
+FINDING_DIR. . . .  C ADDR   006CH   R   SEG=AUTOPLAY
+FIND_1LIMIT. . . .  C ADDR   00DFH   R   SEG=AUTOPLAY
+FIND_2LIMIT. . . .  C ADDR   0136H   R   SEG=AUTOPLAY
+FIND_DIR . . . . .  C ADDR   006AH   R   SEG=AUTOPLAY
+FIND_ON_HORIZ. . .  C ADDR   009CH   R   SEG=AUTOPLAY
+FOUNDLIMIT . . . .  C ADDR   012DH   R   SEG=AUTOPLAY
+HIT_MISS_COORD . .  C ADDR   -----       EXT
+IE0. . . . . . . .  B ADDR   0088H.1 A   
+IE1. . . . . . . .  B ADDR   0088H.3 A   
+IEN0 . . . . . . .  D ADDR   00A8H   A   
+IEN1 . . . . . . .  D ADDR   00B1H   A   
+INC_POSX . . . . .  C ADDR   00ACH   R   SEG=AUTOPLAY
+INC_POSY . . . . .  C ADDR   0084H   R   SEG=AUTOPLAY
+INSERT_SHIP. . . .  C ADDR   -----       EXT
+INT0 . . . . . . .  B ADDR   00B0H.2 A   
+INT1 . . . . . . .  B ADDR   00B0H.3 A   
+INVDIR_DOWN. . . .  C ADDR   0158H   R   SEG=AUTOPLAY
+INVDIR_LEFT. . . .  C ADDR   0168H   R   SEG=AUTOPLAY
+INVDIR_RIGHT . . .  C ADDR   0150H   R   SEG=AUTOPLAY
+INVDIR_UP. . . . .  C ADDR   0154H   R   SEG=AUTOPLAY
+IPH0 . . . . . . .  D ADDR   00B7H   A   
+IPH1 . . . . . . .  D ADDR   00B3H   A   
+IPL0 . . . . . . .  D ADDR   00B8H   A   
+IPL1 . . . . . . .  D ADDR   00B2H   A   
+IPOSX. . . . . . .  D ADDR   0037H   A   
+IPOSY. . . . . . .  D ADDR   0036H   A   
+IT0. . . . . . . .  B ADDR   0088H.0 A   
+IT1. . . . . . . .  B ADDR   0088H.2 A   
+KBE. . . . . . . .  D ADDR   009DH   A   
+KBF. . . . . . . .  D ADDR   009EH   A   
+KBLS . . . . . . .  D ADDR   009CH   A   
+LOOPS1SEC. . . . .  D ADDR   003DH   A   
+LPOSX. . . . . . .  D ADDR   0035H   A   
+LPOSY. . . . . . .  D ADDR   0034H   A   
+MINUTO . . . . . .  D ADDR   003CH   A   
+OV . . . . . . . .  B ADDR   00D0H.2 A   
+A51 MACRO ASSEMBLER  AUTOPLAY                                                             02/16/2015 01:26:32 PAGE     8
+
+P. . . . . . . . .  B ADDR   00D0H.0 A   
+P0 . . . . . . . .  D ADDR   0080H   A   
+P1 . . . . . . . .  D ADDR   0090H   A   
+P2 . . . . . . . .  D ADDR   00A0H   A   
+P3 . . . . . . . .  D ADDR   00B0H   A   
+PCON . . . . . . .  D ADDR   0087H   A   
+POSX . . . . . . .  D ADDR   0033H   A   
+POSY . . . . . . .  D ADDR   0032H   A   
+PPCL . . . . . . .  B ADDR   00B8H.6 A   
+PSL. . . . . . . .  B ADDR   00B8H.4 A   
+PSW. . . . . . . .  D ADDR   00D0H   A   
+PT0L . . . . . . .  B ADDR   00B8H.1 A   
+PT1L . . . . . . .  B ADDR   00B8H.3 A   
+PT2L . . . . . . .  B ADDR   00B8H.5 A   
+PX0L . . . . . . .  B ADDR   00B8H.0 A   
+PX1L . . . . . . .  B ADDR   00B8H.2 A   
+RAND8. . . . . . .  C ADDR   0000H   R   SEG=AUTOPLAY
+RAND8B . . . . . .  C ADDR   0007H   R   SEG=AUTOPLAY
+RAND8REG . . . . .  D ADDR   0039H   A   
+RB8. . . . . . . .  B ADDR   0098H.2 A   
+RCAP2H . . . . . .  D ADDR   00CBH   A   
+RCAP2L . . . . . .  D ADDR   00CAH   A   
+RCLK . . . . . . .  B ADDR   00C8H.5 A   
+RD . . . . . . . .  B ADDR   00B0H.7 A   
+REN. . . . . . . .  B ADDR   0098H.4 A   
+RI . . . . . . . .  B ADDR   0098H.0 A   
+RND_COORD. . . . .  C ADDR   0011H   R   SEG=AUTOPLAY
+RND_INSERT . . . .  C ADDR   0031H   R   SEG=AUTOPLAY
+RND_VLDPLAY. . . .  C ADDR   004AH   R   SEG=AUTOPLAY
+RS0. . . . . . . .  B ADDR   00D0H.3 A   
+RS1. . . . . . . .  B ADDR   00D0H.4 A   
+RXD. . . . . . . .  B ADDR   00B0H.0 A   
+SADDR. . . . . . .  D ADDR   00A9H   A   
+SADEN. . . . . . .  D ADDR   00B9H   A   
+SBUF . . . . . . .  D ADDR   0099H   A   
+SCON . . . . . . .  D ADDR   0098H   A   
+SEGUNDO. . . . . .  D ADDR   003BH   A   
+SHIPDESTROYD . . .  C ADDR   018EH   R   SEG=AUTOPLAY
+SHIP_NUMBER. . . .  D ADDR   0038H   A   
+SHIP_ORI . . . . .  B ADDR   0020H.3 A   
+SKIP_INCY. . . . .  C ADDR   0029H   R   SEG=AUTOPLAY
+SM0. . . . . . . .  B ADDR   0098H.7 A   
+SM1. . . . . . . .  B ADDR   0098H.6 A   
+SM2. . . . . . . .  B ADDR   0098H.5 A   
+SP . . . . . . . .  D ADDR   0081H   A   
+SPCON. . . . . . .  D ADDR   00C3H   A   
+SPDAT. . . . . . .  D ADDR   00C5H   A   
+SPSTA. . . . . . .  D ADDR   00C4H   A   
+SWITCH_ACC . . . .  C ADDR   003DH   R   SEG=AUTOPLAY
+T0 . . . . . . . .  B ADDR   00B0H.4 A   
+T1 . . . . . . . .  B ADDR   00B0H.5 A   
+T2CON. . . . . . .  D ADDR   00C8H   A   
+T2MOD. . . . . . .  D ADDR   00C9H   A   
+TB8. . . . . . . .  B ADDR   0098H.3 A   
+TCLK . . . . . . .  B ADDR   00C8H.4 A   
+TCON . . . . . . .  D ADDR   0088H   A   
+TF0. . . . . . . .  B ADDR   0088H.5 A   
+TF1. . . . . . . .  B ADDR   0088H.7 A   
+TF2. . . . . . . .  B ADDR   00C8H.7 A   
+TH0. . . . . . . .  D ADDR   008CH   A   
+TH1. . . . . . . .  D ADDR   008DH   A   
+TH2. . . . . . . .  D ADDR   00CDH   A   
+TI . . . . . . . .  B ADDR   0098H.1 A   
+TL0. . . . . . . .  D ADDR   008AH   A   
+TL1. . . . . . . .  D ADDR   008BH   A   
+TL2. . . . . . . .  D ADDR   00CCH   A   
+A51 MACRO ASSEMBLER  AUTOPLAY                                                             02/16/2015 01:26:32 PAGE     9
+
+TMOD . . . . . . .  D ADDR   0089H   A   
+TR0. . . . . . . .  B ADDR   0088H.4 A   
+TR1. . . . . . . .  B ADDR   0088H.6 A   
+TR2. . . . . . . .  B ADDR   00C8H.2 A   
+TXD. . . . . . . .  B ADDR   00B0H.1 A   
+VALID_COORD. . . .  B ADDR   0020H.0 A   
+VALID_SHIP . . . .  B ADDR   0020H.4 A   
+VLD_LMT. . . . . .  B ADDR   0020H.5 A   
+WDTPRG . . . . . .  D ADDR   00A7H   A   
+WDTRST . . . . . .  D ADDR   00A6H   A   
+WR . . . . . . . .  B ADDR   00B0H.6 A   
+
+
+REGISTER BANK(S) USED: 0 
+
+
+ASSEMBLY COMPLETE.  0 WARNING(S), 0 ERROR(S)
