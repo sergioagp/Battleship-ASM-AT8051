@@ -1,0 +1,2 @@
+# Battleship 8051: The classic board game written in Assembly
+This project focused on the development of the classic two-player board game, Battleship. In order to improve assembly coding skills for the 8051 architecture, this project had the constraint to be written completely in assembly. The implemented game offers two gameplay modes: (i) Human vs. Human, and; (ii) Human vs 8051 MCU. Besides this, PS/2 keyboard support, UART communication and time-awareness of every move are included on the project.
